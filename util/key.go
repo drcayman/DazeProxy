@@ -64,3 +64,8 @@ func CheckKeyAndGen()  {
 func CheckLicense(){
 
 }
+func GenAESKey(bit int) []byte{
+	buf:=make([]byte,bit)
+	rand.Read(buf)
+	return buf
+}

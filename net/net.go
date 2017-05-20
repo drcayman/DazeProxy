@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"bytes"
 	"errors"
+	"io/ioutil"
 )
 var Server *net.Listener
 
@@ -21,7 +22,20 @@ type Packet struct {
 //00 04为content长度
 //31 32 33 34 为content内容
 //F2为尾部
+
+//客户端发送到服务端
+//命令1代表需要公钥
+//命令2代表设定key
+
+//服务端发送到客户端
+//命令1代表data里面是key
+//命令2代表断开性错误（没交换key就执行其他操作）
+//命令3代表key长度错误
+//命令4代表接受key
 func MakePacket(command byte,content []byte) []byte{
+	if content==nil{
+		content=[]byte{0x0}
+	}
 	//取内容长度
 	ContentLen:=uint16(len(content))
 	if ContentLen>0xFFFF {
@@ -58,6 +72,10 @@ func SendPacket(client net.Conn,data []byte){
 		client.Close()
 	}
 }
+func SendPacketAndDisconnect(client net.Conn,data []byte){
+	client.Write(data)
+	client.Close()
+}
 func ServeClient(client net.Conn,c chan Packet){
 	defer func(){
 		close(c)
@@ -82,14 +100,37 @@ func ServeClient(client net.Conn,c chan Packet){
 }
 func ServeCommand(client net.Conn,c chan Packet) {
 	defer func(){
-		client.Write(MakePacket(0xff,[]byte{0xff}))
+		//client.Write(MakePacket(0xff,[]byte{0xff}))
 		client.Close()
 		if config.Config.IsDebug{
 			fmt.Println("[!]",client.RemoteAddr(),"处理线程关闭")
 		}
 	}()
 	for packet:=range c{
-		go SendPacket(client,packet.data)
+		if packet.command==0x1{
+			PublicKeyBuf,PublicKeyErr:=ioutil.ReadFile("public.pem")
+			if PublicKeyErr!=nil{
+				fmt.Println("[×]公钥文件丢失！！系统强制退出")
+				os.Exit(-1)
+			}
+			go SendPacket(client, MakePacket(1,PublicKeyBuf))
+			continue
+		}else if packet.command==0x2{
+			if len(packet.data)!=1024{
+				SendPacketAndDisconnect(client,MakePacket(3,nil))
+				return
+			}
+			MapCommandChan<-MapCommand{Command:3,Conn:client}
+			MapCommandChan<-MapCommand{Command:4,Conn:client,Data:packet.data}
+			go SendPacket(client, MakePacket(4,nil))
+			continue
+		}else{
+			if Users[client.RemoteAddr()].IsKeyExchange==false{
+				SendPacketAndDisconnect(client,MakePacket(2,nil))
+				return
+			}
+		}
+		//go SendPacket(client,packet.data)
 	}
 }
 func StartServer(){
