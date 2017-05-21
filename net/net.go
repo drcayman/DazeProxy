@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"io/ioutil"
+	"../util"
 )
 var Server *net.Listener
 
@@ -91,6 +92,9 @@ func ServeClient(client net.Conn,c chan Packet){
 		if err!=nil{
 			return
 		}
+		//if Users[client.RemoteAddr()].IsKeyExchange{
+		//   buf=
+		//}
 		command,data,derr:=DePacket(buf[0:n])
 		if derr!=nil{
 			continue
@@ -116,12 +120,13 @@ func ServeCommand(client net.Conn,c chan Packet) {
 			go SendPacket(client, MakePacket(1,PublicKeyBuf))
 			continue
 		}else if packet.command==0x2{
-			if len(packet.data)!=1024{
+			Debuf,DeErr:=util.DecryptRSA(packet.data)
+			if DeErr!=nil || len(Debuf)!=32{
 				SendPacketAndDisconnect(client,MakePacket(3,nil))
 				return
 			}
 			MapCommandChan<-MapCommand{Command:3,Conn:client}
-			MapCommandChan<-MapCommand{Command:4,Conn:client,Data:packet.data}
+			MapCommandChan<-MapCommand{Command:4,Conn:client,Data:Debuf}
 			go SendPacket(client, MakePacket(4,nil))
 			continue
 		}else{
@@ -130,7 +135,6 @@ func ServeCommand(client net.Conn,c chan Packet) {
 				return
 			}
 		}
-		//go SendPacket(client,packet.data)
 	}
 }
 func StartServer(){
