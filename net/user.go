@@ -3,6 +3,7 @@ package net
 import (
 	"time"
 	"net"
+	"../util"
 )
 
 type User struct {
@@ -12,6 +13,7 @@ type User struct {
 	AESKey []byte
 	IsAuth bool
 	IsConnected bool
+	RandomData []byte
 }
 func AddUser(conn net.Conn){
 	MapCommandChan<-MapCommand{Command:1,Conn:conn}
@@ -40,15 +42,17 @@ var MapCommandChan chan MapCommand
 func MapCommandThread(){
 	for c:=range MapCommandChan{
 		switch c.Command{
-		case 0:delete(Users,c.Conn.RemoteAddr())
+		case 0:
+			(Users[c.Conn.RemoteAddr()]).AESKey=nil
+			delete(Users,c.Conn.RemoteAddr())
 		case 1:Users[c.Conn.RemoteAddr()]=&User{
 			LastHeartBeat:time.Now(),
 			conn:c.Conn,
+			RandomData:util.GenRandomData(16),
 			}
 		case 2:HeartbeatCheck()
 		case 3:(Users[c.Conn.RemoteAddr()]).IsKeyExchange=c.Bool
 		case 4:	(Users[c.Conn.RemoteAddr()]).AESKey=c.Data
-		case 5:
 		}
 	}
 }

@@ -3,7 +3,7 @@ package net
 import (
 	"time"
 	"../config"
-	"fmt"
+	"../log"
 )
 
 func HeartbeatCheck(){
@@ -11,7 +11,7 @@ func HeartbeatCheck(){
 		d:=time.Now().Sub(v.LastHeartBeat)
 		if d.Seconds()>10{
 			if config.Config.IsDebug{
-				fmt.Println("用户",v.conn.RemoteAddr(),"心跳超时，断开")
+				log.PrintAlert("用户",v.conn.RemoteAddr(),"心跳超时，断开")
 			}
 			v.conn.Close()
 		}

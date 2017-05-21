@@ -7,9 +7,9 @@ import (
 	"crypto/rsa"
 	"crypto/rand"
 	"crypto/cipher"
-	"fmt"
 	"io/ioutil"
 	"crypto/aes"
+	"../log"
 )
 
 func GenRsaKey(bits int) error {
@@ -52,51 +52,48 @@ func GenRsaKey(bits int) error {
 	return nil
 }
 func CheckKeyAndGen()  {
-	fmt.Println("[!]开始检查密钥文件")
+	log.PrintAlert("开始检查密钥文件")
 	_,privateKeyErr:=os.Stat("private.pem")
 	_,publicKeyErr:=os.Stat("public.pem")
 	if privateKeyErr!=nil || publicKeyErr!=nil{
-		fmt.Println("[!]密钥文件不存在，开始生成密钥文件")
+		log.PrintPanicWithoutExit("密钥文件不存在，开始生成密钥文件")
 		os.Remove("private.pem")
 		os.Remove("public.pem")
 		GenRsaKey(1024)
-		fmt.Println("[√]密钥文件生成成功")
+		log.PrintSuccess("密钥文件生成成功")
 	}
-	fmt.Println("[√]密钥文件检查完毕")
+	log.PrintSuccess("密钥文件检查完毕")
 }
 func CheckLicense(){
 
 }
-func GenAESKey(bit int) []byte{
-	buf:=make([]byte,bit)
+func GenRandomData(bytes int) []byte{
+	buf:=make([]byte,bytes)
 	rand.Read(buf)
 	return buf
 }
 func DecryptRSA(data []byte) ([]byte,error){
 	KeyFileBuf,PrivateKeyErr:=ioutil.ReadFile("private.pem")
 	if PrivateKeyErr!=nil{
-		fmt.Println("[×D]私钥文件丢失！！系统强制退出")
-		os.Exit(-1)
+		log.PrintAlert("私钥文件丢失！！系统强制退出(D)")
+
 	}
 	block,_:=pem.Decode(KeyFileBuf)
 	PrivateKey,PrivateKeyParseErr:=x509.ParsePKCS1PrivateKey(block.Bytes)
 	if PrivateKeyParseErr!=nil{
-		fmt.Println("[×D]私钥文件解析错误！！系统强制退出")
-		os.Exit(-1)
+		log.PrintPanic("私钥文件解析错误！！系统强制退出(E)")
 	}
 	return rsa.DecryptPKCS1v15(rand.Reader,PrivateKey,data)
 }
 func EncryptRSA(data []byte) ([]byte,error){
 	KeyFileBuf,PrivateKeyErr:=ioutil.ReadFile("private.pem")
 	if PrivateKeyErr!=nil{
-		fmt.Println("[×E]私钥文件丢失！！系统强制退出")
-		os.Exit(-1)
+		log.PrintPanic("私钥文件丢失！！系统强制退出(E1)")
 	}
 	block,_:=pem.Decode(KeyFileBuf)
 	PrivateKey,PrivateKeyParseErr:=x509.ParsePKCS1PrivateKey(block.Bytes)
 	if PrivateKeyParseErr!=nil{
-		fmt.Println("[×E]私钥文件解析错误！！系统强制退出",PrivateKeyParseErr.Error())
-		os.Exit(-1)
+		log.PrintPanic("私钥文件解析错误！！系统强制退出",PrivateKeyParseErr.Error())
 	}
 	return rsa.EncryptPKCS1v15(rand.Reader,&PrivateKey.PublicKey,data)
 }

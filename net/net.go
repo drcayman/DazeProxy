@@ -3,13 +3,13 @@ package net
 import (
 	"net"
 	"../config"
-	"fmt"
 	"os"
 	"encoding/binary"
 	"bytes"
 	"errors"
 	"io/ioutil"
 	"../util"
+	"../log"
 )
 var Server *net.Listener
 
@@ -24,15 +24,6 @@ type Packet struct {
 //31 32 33 34 为content内容
 //F2为尾部
 
-//客户端发送到服务端
-//命令1代表需要公钥
-//命令2代表设定key
-
-//服务端发送到客户端
-//命令1代表data里面是key
-//命令2代表断开性错误（没交换key就执行其他操作）
-//命令3代表key长度错误
-//命令4代表接受key
 func MakePacket(command byte,content []byte) []byte{
 	if content==nil{
 		content=[]byte{0x0}
@@ -82,7 +73,7 @@ func ServeClient(client net.Conn,c chan Packet){
 		close(c)
 		DisconnectAndDeleteUser(client)
 		if config.Config.IsDebug{
-			fmt.Println("[!]",client.RemoteAddr(),"连接线程关闭")
+			log.PrintAlert(client.RemoteAddr(),"连接线程关闭")
 		}
 	}()
 	buf:=make([]byte,65536)
@@ -106,50 +97,71 @@ func ServeClient(client net.Conn,c chan Packet){
 		c<-Packet{command:command,data:data}
 	}
 }
+/*
+客户端发送到服务端
+命令1代表需要公钥
+命令2代表设定key
+命令3代表用户名密码登录，data里面是json格式的数据，例如{"username":"123","password":"456"}
+命令4代表客户端想要用证书登录，data里面是RSA指纹
+命令5代表客户端发送过来的随机字符串A，要求服务端对比是否一致
+
+服务端发送到客户端
+命令1代表data里面是key
+命令2代表断开性错误（没交换key就执行其他操作）
+命令3代表key长度错误
+命令4代表接受AESkey
+命令5代表利用用户RSA指纹寻找到公钥，并加密了一串随机字符串A
+命令6代表用户RSA指纹寻找不到公钥
+命令7代表客户端发送过来的随机字符串A跟服务端一致（证书登录成功）
+命令8代表客户端发送过来的随机字符串A跟服务端不一致（证书登录失败）
+命令FF代表指令没法识别
+*/
 func ServeCommand(client net.Conn,c chan Packet) {
 	defer func(){
 		client.Close()
 		if config.Config.IsDebug{
-			fmt.Println("[!]",client.RemoteAddr(),"处理线程关闭")
+			log.PrintAlert(client.RemoteAddr(),"处理线程关闭")
 		}
 	}()
 	for packet:=range c{
-		if packet.command==0x1{
-			PublicKeyBuf,PublicKeyErr:=ioutil.ReadFile("public.pem")
-			if PublicKeyErr!=nil{
-				fmt.Println("[×]公钥文件丢失！！系统强制退出")
-				os.Exit(-1)
-			}
-			go SendPacket(client, MakePacket(1,PublicKeyBuf))
-			continue
-		}else if packet.command==0x2{
-			Debuf,DeErr:=util.DecryptRSA(packet.data)
-			if DeErr!=nil || len(Debuf)!=32{
-				SendPacketAndDisconnect(client,MakePacket(3,nil))
-				return
-			}
-			SetKeyExchange(client,true)
-			SetAESKey(client,Debuf)
-			go SendPacket(client, MakePacket(4,nil))
-			continue
-		}else{
-			if Users[client.RemoteAddr()].IsKeyExchange==false{
-				SendPacketAndDisconnect(client,MakePacket(2,nil))
+		if Users[client.RemoteAddr()].IsKeyExchange==false {
+			if packet.command == 0x1 {
+				PublicKeyBuf, PublicKeyErr := ioutil.ReadFile("public.pem")
+				if PublicKeyErr != nil {
+					log.PrintPanic("公钥文件丢失！！系统强制退出")
+
+				}
+				go SendPacket(client, MakePacket(1, PublicKeyBuf))
+				continue
+			} else if packet.command == 0x2 {
+				Debuf, DeErr := util.DecryptRSA(packet.data)
+				if DeErr != nil || len(Debuf) != 32 {
+					SendPacketAndDisconnect(client, MakePacket(3, nil))
+					return
+				}
+				SetKeyExchange(client, true)
+				SetAESKey(client, Debuf)
+				go SendPacket(client, MakePacket(4, nil))
+				continue
+			} else {
+				SendPacketAndDisconnect(client, MakePacket(2, nil))
 				return
 			}
 		}
+		if Users[client.RemoteAddr()].IsAuth==false{
 
+		}
 	}
 }
 func StartServer(){
 	l,err:=net.Listen("tcp",":"+config.Config.ServerPort)
 	if err!=nil{
-		fmt.Println("[×]服务端启动失败（原因：",err.Error(),")")
+		log.PrintPanic("服务端启动失败（原因：",err.Error(),")")
 		os.Exit(-1)
 	}
 	Server=&l
 	//go StartHeartbeat()
-	fmt.Println("[√]服务端启动成功")
+	log.PrintSuccess("服务端启动成功")
 	for {
 		client, _ := l.Accept()
 		//delete(Users,client.RemoteAddr()) //BUG!!!!!
