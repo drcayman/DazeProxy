@@ -80,8 +80,7 @@ func SendPacketAndDisconnect(client net.Conn,data []byte){
 func ServeClient(client net.Conn,c chan Packet){
 	defer func(){
 		close(c)
-		client.Close()
-		MapCommandChan<-MapCommand{Command:0,Conn:client}
+		DisconnectAndDeleteUser(client)
 		if config.Config.IsDebug{
 			fmt.Println("[!]",client.RemoteAddr(),"连接线程关闭")
 		}
@@ -92,9 +91,14 @@ func ServeClient(client net.Conn,c chan Packet){
 		if err!=nil{
 			return
 		}
-		//if Users[client.RemoteAddr()].IsKeyExchange{
-		//   buf=
-		//}
+		if Users[client.RemoteAddr()].IsKeyExchange{
+		   newbuf,err:=util.DecryptAES(buf,Users[client.RemoteAddr()].AESKey)
+			if err!=nil{
+				continue
+			}
+			buf=nil
+			buf=newbuf
+		}
 		command,data,derr:=DePacket(buf[0:n])
 		if derr!=nil{
 			continue
@@ -104,7 +108,6 @@ func ServeClient(client net.Conn,c chan Packet){
 }
 func ServeCommand(client net.Conn,c chan Packet) {
 	defer func(){
-		//client.Write(MakePacket(0xff,[]byte{0xff}))
 		client.Close()
 		if config.Config.IsDebug{
 			fmt.Println("[!]",client.RemoteAddr(),"处理线程关闭")
@@ -125,8 +128,8 @@ func ServeCommand(client net.Conn,c chan Packet) {
 				SendPacketAndDisconnect(client,MakePacket(3,nil))
 				return
 			}
-			MapCommandChan<-MapCommand{Command:3,Conn:client}
-			MapCommandChan<-MapCommand{Command:4,Conn:client,Data:Debuf}
+			SetKeyExchange(client,true)
+			SetAESKey(client,Debuf)
 			go SendPacket(client, MakePacket(4,nil))
 			continue
 		}else{
@@ -135,6 +138,7 @@ func ServeCommand(client net.Conn,c chan Packet) {
 				return
 			}
 		}
+
 	}
 }
 func StartServer(){
@@ -149,7 +153,7 @@ func StartServer(){
 	for {
 		client, _ := l.Accept()
 		//delete(Users,client.RemoteAddr()) //BUG!!!!!
-		MapCommandChan<-MapCommand{Command:1,Conn:client}
+		AddUser(client)
 		c:=make(chan Packet,10)
 		go ServeClient(client,c)
 		go ServeCommand(client,c)

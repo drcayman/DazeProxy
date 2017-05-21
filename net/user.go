@@ -10,11 +10,30 @@ type User struct {
 	LastHeartBeat time.Time
 	IsKeyExchange bool
 	AESKey []byte
+	IsAuth bool
+	IsConnected bool
+}
+func AddUser(conn net.Conn){
+	MapCommandChan<-MapCommand{Command:1,Conn:conn}
+}
+func DisconnectAndDeleteUser(conn net.Conn){
+	conn.Close()
+	MapCommandChan<-MapCommand{Command:0,Conn:conn}
+}
+func SetKeyExchange(conn net.Conn,IsKeyExchange bool){
+	MapCommandChan<-MapCommand{Command:3,Conn:conn,Bool:IsKeyExchange}
+}
+func SetAESKey(conn net.Conn,key []byte){
+	MapCommandChan<-MapCommand{Command:4,Conn:conn,Data:key}
+}
+func StartOnceHeartbeat(){
+	MapCommandChan<-MapCommand{Command:2,Conn:nil}
 }
 type MapCommand struct{
 	Command int
 	Conn net.Conn
 	Data []byte
+	Bool bool
  }
 var Users map[net.Addr]*User
 var MapCommandChan chan MapCommand
@@ -27,8 +46,9 @@ func MapCommandThread(){
 			conn:c.Conn,
 			}
 		case 2:HeartbeatCheck()
-		case 3:(Users[c.Conn.RemoteAddr()]).IsKeyExchange=true
+		case 3:(Users[c.Conn.RemoteAddr()]).IsKeyExchange=c.Bool
 		case 4:	(Users[c.Conn.RemoteAddr()]).AESKey=c.Data
+		case 5:
 		}
 	}
 }

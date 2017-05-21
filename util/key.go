@@ -59,7 +59,7 @@ func CheckKeyAndGen()  {
 		fmt.Println("[!]密钥文件不存在，开始生成密钥文件")
 		os.Remove("private.pem")
 		os.Remove("public.pem")
-		GenRsaKey(32*9)
+		GenRsaKey(1024)
 		fmt.Println("[√]密钥文件生成成功")
 	}
 	fmt.Println("[√]密钥文件检查完毕")
