@@ -2,15 +2,13 @@ package main
 
 
 import (
-	"./net"
-	"./util"
-	_ "./config"
+	"DazeProxy/net"
+	"DazeProxy/util"
+	_ "DazeProxy/config"
 )
 
 
 func main(){
-	//log.PrintAlert("aaa","1234567")
-	//fmt.Println(runtime.GOOS)
 	util.CheckLicense()
 	util.CheckKeyAndGen()
 	net.StartServer()

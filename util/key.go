@@ -9,7 +9,8 @@ import (
 	"crypto/cipher"
 	"io/ioutil"
 	"crypto/aes"
-	"../log"
+	"DazeProxy/log"
+	"errors"
 )
 
 func GenRsaKey(bits int) error {
@@ -85,6 +86,14 @@ func DecryptRSA(data []byte) ([]byte,error){
 	}
 	return rsa.DecryptPKCS1v15(rand.Reader,PrivateKey,data)
 }
+func DecryptRSAWithKey(data []byte,key []byte) ([]byte,error){
+	block,_:=pem.Decode(key)
+	PrivateKey,PrivateKeyParseErr:=x509.ParsePKCS1PrivateKey(block.Bytes)
+	if PrivateKeyParseErr!=nil{
+		return nil,errors.New("key error")
+	}
+	return rsa.DecryptPKCS1v15(rand.Reader,PrivateKey,data)
+}
 func EncryptRSA(data []byte) ([]byte,error){
 	KeyFileBuf,PrivateKeyErr:=ioutil.ReadFile("private.pem")
 	if PrivateKeyErr!=nil{
@@ -96,6 +105,14 @@ func EncryptRSA(data []byte) ([]byte,error){
 		log.PrintPanic("私钥文件解析错误！！系统强制退出",PrivateKeyParseErr.Error())
 	}
 	return rsa.EncryptPKCS1v15(rand.Reader,&PrivateKey.PublicKey,data)
+}
+func EncryptRSAWithKey(data []byte,key []byte) ([]byte,error){
+	block,_:=pem.Decode(key)
+	PublicKey,PublicKeyParseErr:=x509.ParsePKIXPublicKey(block.Bytes)
+	if PublicKeyParseErr!=nil{
+		return nil,errors.New("key error")
+	}
+	return rsa.EncryptPKCS1v15(rand.Reader,PublicKey.(*rsa.PublicKey),data)
 }
 func DecryptAES(data []byte,key []byte) ([]byte,error){
 	block,CipherErr:=aes.NewCipher(key)

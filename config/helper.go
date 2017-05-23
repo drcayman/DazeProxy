@@ -3,7 +3,7 @@ package config
 import (
 	"io/ioutil"
 	"encoding/json"
-	"../log"
+	"DazeProxy/log"
 )
 
 type ConfigStruct struct{
