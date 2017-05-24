@@ -2,7 +2,6 @@ package net
 
 import (
 	"time"
-	"DazeProxy/config"
 	"DazeProxy/log"
 )
 
@@ -11,9 +10,7 @@ func HeartbeatCheck(){
 		if v.IsConnected==false{
 			d:=time.Now().Sub(v.LastHeartBeat)
 			if d.Seconds()>10{
-				if config.Config.IsDebug{
-					log.PrintAlert("用户",v.conn.RemoteAddr(),"验证或者连接超时，断开")
-				}
+				log.DebugPrintAlert("用户",v.conn.RemoteAddr(),"验证或者连接超时，断开")
 				DisconnectAndDeleteUser(v.conn)
 			}
 		}
@@ -21,7 +18,7 @@ func HeartbeatCheck(){
 }
 func StartHeartbeat(){
 	for{
-		StartOnceHeartbeat()
+		HeartbeatCheck()
 		time.Sleep(time.Second)
 	}
 }

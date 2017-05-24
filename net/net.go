@@ -14,7 +14,6 @@ import (
 	"unsafe"
 	"strings"
 	"time"
-	"fmt"
 )
 var Server *net.Listener
 
@@ -71,9 +70,7 @@ func ServeClient(client net.Conn,c chan Packet){
 	defer func(){
 		close(c)
 		DisconnectAndDeleteUser(client)
-		if config.Config.IsDebug{
-			log.PrintAlert(client.RemoteAddr(),"连接线程关闭")
-		}
+		log.DebugPrintAlert(client.RemoteAddr(),"连接线程关闭")
 	}()
 	buf:=make([]byte,65536)
 	for{
@@ -148,9 +145,7 @@ func DecodeConnectPacketAndCheck(data []byte)(string,error){
 func ServeCommand(client net.Conn,c chan Packet) {
 	defer func(){
 		client.Close()
-		if config.Config.IsDebug{
-			log.PrintAlert(client.RemoteAddr(),"处理线程关闭")
-		}
+		log.DebugPrintAlert(client.RemoteAddr(),"处理线程关闭")
 	}()
 	for packet:=range c{
 		if Users[client.RemoteAddr()].IsKeyExchange==false {
@@ -159,7 +154,7 @@ func ServeCommand(client net.Conn,c chan Packet) {
 				if PublicKeyErr != nil {
 					log.PrintPanic("公钥文件丢失！！系统强制退出")
 				}
-				go SendPacket(client, MakePacket(1, PublicKeyBuf))
+				SendPacket(client, MakePacket(1, PublicKeyBuf))
 				continue
 			} else if packet.command == 0x2 {
 				Debuf, DeErr := util.DecryptRSA(packet.data)
@@ -170,7 +165,7 @@ func ServeCommand(client net.Conn,c chan Packet) {
 				SetKeyExchange(client, true)
 				SetAuthed(client, true) //debug!!!!!!!!!!!!!!!!!
 				SetAESKey(client, Debuf)
-				go SendPacket(client, MakePacket(4, nil))
+				SendPacket(client, MakePacket(4, nil))
 				continue
 			} else {
 				SendPacketAndDisconnect(client, MakePacket(2, nil))
@@ -188,23 +183,23 @@ func ServeCommand(client net.Conn,c chan Packet) {
 				key := packet.data
 				EncryptRandom, EncryptRandomErr := util.EncryptRSAWithKey(Users[client.RemoteAddr()].RandomData, key)
 				if EncryptRandomErr != nil {
-					go SendPacket(client, MakePacket(0xA, nil))
+					SendPacket(client, MakePacket(0xA, nil))
 					continue
 				}
-				go SendPacket(client, MakePacket(5, EncryptRandom))
+				SendPacket(client, MakePacket(5, EncryptRandom))
 				SetPublicKeyFlag(client, true)
 			case 5:
 				if Users[client.RemoteAddr()].PublicKeyFlag == false {
-					go SendPacket(client, MakePacket(0xff, nil))
+					SendPacket(client, MakePacket(0xff, nil))
 					continue
 				}
 				if bytes.Compare(packet.data, Users[client.RemoteAddr()].RandomData) == 0 {
 					SetAuthed(client, true)
-					go SendPacket(client, MakePacket(7, nil))
+					SendPacket(client, MakePacket(7, nil))
 					continue
 				} else {
 					SetAuthed(client, false)
-					go SendPacket(client, MakePacket(8, nil))
+					SendPacket(client, MakePacket(8, nil))
 					continue
 				}
 			default:
@@ -220,8 +215,14 @@ func ServeCommand(client net.Conn,c chan Packet) {
 					SendPacketAndDisconnect(client, MakePacket(0xE1, nil))
 					return
 				}
-				fmt.Println(address)
-				net.DialTimeout("tcp",address, time.Second * 3)
+				proxyconn,dailerr:=net.DialTimeout("tcp",address, time.Second * 3)
+				log.DebugPrintNormal("客户端",client.RemoteAddr(),"想要代理",address)
+				if dailerr!=nil{
+					log.DebugPrintNormal("客户端",client.RemoteAddr(),"想要代理",address,"但连接失败了")
+					SendPacketAndDisconnect(client, MakePacket(0xE2, nil))
+				}
+				SetConnected(client,true)
+				SetRemoteConn(client,proxyconn)
 			}
 		}
 	}

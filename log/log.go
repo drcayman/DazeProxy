@@ -6,6 +6,7 @@ import (
 	"os"
 	"syscall"
 	"runtime"
+	"DazeProxy/config"
 )
 const(
 	linux_yellow="\033[01;33m"
@@ -25,6 +26,31 @@ func appendArr(src *[]interface{},target *[]interface{}){
 		*target=append(*target,v)
 	}
 }
+func DebugPrintAlert(a ...interface{}){
+	if config.Config.IsDebug{
+		PrintAlert(a)
+	}
+}
+func DebugPanic(a ...interface{}){
+	if config.Config.IsDebug{
+		PrintPanic(a)
+	}
+}
+func DebugPrintPanicWithoutExit(a ...interface{}){
+	if config.Config.IsDebug{
+		PrintPanicWithoutExit(a)
+	}
+}
+func DebugPrintSuccess(a ...interface{}){
+	if config.Config.IsDebug{
+		PrintSuccess(a)
+	}
+}
+func DebugPrintNormal(a ...interface{}){
+	if config.Config.IsDebug{
+		PrintNormal(a)
+	}
+}
 func PrintAlert(a ...interface{}){
 	var tmp []interface{}
 	if runtime.GOOS!="windows"{
@@ -39,9 +65,6 @@ func PrintAlert(a ...interface{}){
 		SetConsoleTextAttribute.Call(uintptr(StdoutHandle),uintptr(windows_yellow))
 	}
 	_Print(tmp)
-	if runtime.GOOS=="windows"{
-		SetConsoleTextAttribute.Call(uintptr(StdoutHandle),uintptr(windows_turnoff))
-	}
 }
 func PrintPanic(a ...interface{}){
 	var tmp []interface{}
@@ -57,9 +80,6 @@ func PrintPanic(a ...interface{}){
 		SetConsoleTextAttribute.Call(uintptr(StdoutHandle),uintptr(windows_red))
 	}
 	_Print(tmp)
-	if runtime.GOOS=="windows"{
-		SetConsoleTextAttribute.Call(uintptr(StdoutHandle),uintptr(windows_turnoff))
-	}
 	os.Exit(-1)
 }
 func PrintPanicWithoutExit(a ...interface{}){
@@ -69,16 +89,12 @@ func PrintPanicWithoutExit(a ...interface{}){
 	}
 	tmp=append(tmp, time.Now().Format("2006-01-02 03:04:05.000 | [×]"))
 	appendArr(&a,&tmp)
-
 	if runtime.GOOS!="windows"{
 		tmp=append(tmp,linux_turnoff)
 	}else{
 		SetConsoleTextAttribute.Call(uintptr(StdoutHandle),uintptr(windows_red))
 	}
 	_Print(tmp)
-	if runtime.GOOS=="windows"{
-		SetConsoleTextAttribute.Call(uintptr(StdoutHandle),uintptr(windows_turnoff))
-	}
 }
 func PrintSuccess(a ...interface{}){
 	var tmp []interface{}
@@ -94,21 +110,18 @@ func PrintSuccess(a ...interface{}){
 		SetConsoleTextAttribute.Call(uintptr(StdoutHandle),uintptr(windows_green))
 	}
 	_Print(tmp)
+}
+func PrintNormal(a ...interface{}){
 	if runtime.GOOS=="windows"{
 		SetConsoleTextAttribute.Call(uintptr(StdoutHandle),uintptr(windows_turnoff))
 	}
-}
-func PrintNormal(a ...interface{}){
 	var tmp []interface{}
 	tmp=append(tmp, time.Now().Format("2006-01-02 03:04:05.000 |"))
 	appendArr(&a,&tmp)
-	fmt.Fprintln(os.Stdout,tmp)
+	_Print(tmp)
 }
 func _Print(a []interface{}){
-	for _,v:=range a{
-		fmt.Print(v," ")
-	}
-	fmt.Print("\n")
+	fmt.Println(a)
 }
 func init(){
 	if runtime.GOOS=="windows" {
