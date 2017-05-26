@@ -19,6 +19,74 @@ type User struct {
 	RetryTime int
 	RemoteConn net.Conn
 }
+var lock sync.Mutex
+func GetIsKeyExchange(conn net.Conn) bool {
+	defer func(){
+	lock.Unlock()
+	}()
+	lock.Lock()
+	return Users[conn.RemoteAddr()].IsKeyExchange
+}
+func GetAESKey(conn net.Conn) []byte {
+	defer func(){
+	lock.Unlock()
+	}()
+	lock.Lock()
+	if Users[conn.RemoteAddr()].AESKey==nil{
+		return nil
+	}
+	return Users[conn.RemoteAddr()].AESKey
+}
+func GetIsAuth(conn net.Conn) bool {
+	defer func(){
+	lock.Unlock()
+	}()
+	lock.Lock()
+	return Users[conn.RemoteAddr()].IsAuth
+}
+func GetPublicKeyFlag(conn net.Conn) bool {
+	defer func(){
+	lock.Unlock()
+	}()
+	lock.Lock()
+	return Users[conn.RemoteAddr()].PublicKeyFlag
+}
+func GetIsConnected(conn net.Conn) bool {
+	defer func(){
+	lock.Unlock()
+	}()
+	lock.Lock()
+	return Users[conn.RemoteAddr()].IsConnected
+}
+func GetRandomData(conn net.Conn) []byte {
+	defer func(){
+	lock.Unlock()
+	}()
+	lock.Lock()
+	return Users[conn.RemoteAddr()].RandomData
+}
+func GetRetryTime(conn net.Conn) int {
+	defer func(){
+	lock.Unlock()
+	}()
+	lock.Lock()
+	return Users[conn.RemoteAddr()].RetryTime
+}
+func GetRemoteConn(conn net.Conn) net.Conn{
+	defer func(){
+	lock.Unlock()
+	}()
+	lock.Lock()
+	return Users[conn.RemoteAddr()].RemoteConn
+}
+func GetAvailable(conn net.Conn) bool{
+	defer func(){
+	lock.Unlock()
+	}()
+	lock.Lock()
+	_,b:=Users[conn.RemoteAddr()]
+	return b
+}
 func AddUser(conn net.Conn){
 	RunCommand(MapCommand{Command:1,Conn:conn})
 }
@@ -47,39 +115,31 @@ func RetryTimePlus(conn net.Conn){
 	RunCommand(MapCommand{Command:7})
 }
 func RunCommand(command MapCommand){
-	var a sync.Mutex
-	command.Locker=&a
-	a.Lock()
+	lock.Lock()
+	command.Locker=&lock
 	MapCommandChan<-command
-	a.Lock()
-	a.Unlock()
 }
 type MapCommand struct{
 	Command int
 	Conn net.Conn
 	Data []byte
 	Bool bool
-	Locker *sync.Mutex
 	RemoteConn net.Conn
+	Locker *sync.Mutex
  }
 var Users map[net.Addr]*User
 var MapCommandChan chan MapCommand
 func MapCommandThread(){
 	for c:=range MapCommandChan{
-		if c.Command!=1 &&Users[c.Conn.RemoteAddr()]==nil{
-			if c.Locker!=nil{
-				(*c.Locker).Unlock()
-			}
-			continue
-		}
 		switch c.Command{
 		case 0:
 			c.Conn.Close()
-			if Users[c.Conn.RemoteAddr()].RemoteConn!=nil{
+			if Users[c.Conn.RemoteAddr()]!=nil && Users[c.Conn.RemoteAddr()].RemoteConn!=nil{
 				Users[c.Conn.RemoteAddr()].RemoteConn.Close()
 			}
 			delete(Users,c.Conn.RemoteAddr())
-		case 1:Users[c.Conn.RemoteAddr()]=&User{
+		case 1:
+			Users[c.Conn.RemoteAddr()]=&User{
 			LastHeartBeat:time.Now(),
 			conn:c.Conn,
 			RandomData:util.GenRandomData(16),
@@ -88,6 +148,7 @@ func MapCommandThread(){
 			PublicKeyFlag:false,
 			RetryTime:0,
 			IsConnected:false,
+			AESKey:nil,
 			}
 		case 3:(Users[c.Conn.RemoteAddr()]).IsKeyExchange=c.Bool
 		case 4:	(Users[c.Conn.RemoteAddr()]).AESKey=c.Data
@@ -97,13 +158,11 @@ func MapCommandThread(){
 		case 8:	(Users[c.Conn.RemoteAddr()]).IsConnected=c.Bool
 		case 9:	(Users[c.Conn.RemoteAddr()]).RemoteConn=c.RemoteConn
 		}
-		if c.Locker!=nil{
-			(*c.Locker).Unlock()
-		}
+		c.Locker.Unlock()
 	}
 }
 func init(){
 	Users=make(map[net.Addr]*User)
-	MapCommandChan=make(chan MapCommand,2048)
+	MapCommandChan=make(chan MapCommand)
 	go MapCommandThread()
 }

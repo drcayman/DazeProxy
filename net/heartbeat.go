@@ -18,7 +18,7 @@ func HeartbeatCheck(){
 }
 func StartHeartbeat(){
 	for{
-		HeartbeatCheck()
+		//HeartbeatCheck()
 		time.Sleep(time.Second)
 	}
 }

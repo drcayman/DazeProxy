@@ -9,6 +9,7 @@ import (
 
 
 func main(){
+
 	util.CheckLicense()
 	util.CheckKeyAndGen()
 	net.StartServer()

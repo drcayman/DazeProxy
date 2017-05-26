@@ -7,13 +7,11 @@ import (
 	"encoding/binary"
 	"bytes"
 	"errors"
-	"io/ioutil"
 	"DazeProxy/util"
 	"DazeProxy/log"
 	"reflect"
 	"unsafe"
-	"strings"
-	"time"
+	_NET "net"
 )
 var Server *net.Listener
 
@@ -57,40 +55,125 @@ func DePacket(buf []byte) (byte,[]byte,error){
 	return buf[1],buf[4:4+ContentLen],nil
 }
 func SendPacket(client net.Conn,data []byte){
-	_,err:=client.Write(data)
-	if err!=nil{
-		DisconnectAndDeleteUser(client)
+	var bufffer *bytes.Buffer
+	var buf []byte
+	var AESKey []byte
+	if GetAvailable(client)==false{
+		return
 	}
+	if GetIsKeyExchange(client) {
+		AESKey = GetAESKey(client)
+	}else{
+		AESKey= util.GetAESKeyByDay()
+	}
+	data,_=util.EncryptAES(data,AESKey)
+	datelen:=len(data)
+	buf,_=util.EncryptAES([]byte{0xFB,byte(datelen%0x100),byte(datelen/0x100),0xFC},AESKey)
+	bufffer=bytes.NewBuffer(buf)
+	bufffer.Write(data)
+	//fmt.Println("发送了",len(bufffer.Bytes()))
+	client.Write(bufffer.Bytes())
+}
+func SendRawPacket(client net.Conn,data []byte){
+	client.Write(data)
 }
 func SendPacketAndDisconnect(client net.Conn,data []byte){
-	client.Write(data)
-	DisconnectAndDeleteUser(client)
+	SendPacket(client,data)
+	client.Close()
+	//DisconnectAndDeleteUser(client)
+}
+func SaveAESKey(buf []byte,client net.Conn) error{
+	Debuf, DeErr := util.DecryptRSA(buf)
+	log.DebugPrintSuccess("key解码前长度：",len(buf),"key解码后长度：",len(Debuf))
+	if DeErr != nil ||Debuf[len(Debuf)-1]!=0xFF|| len(Debuf) != 33 {
+		client.Close()
+		return errors.New("AESKey Error")
+	}
+	SetAuthed(client, true) //debug!!!!!!!!!!!!!!!!!
+	SetAESKey(client, Debuf[:len(Debuf)-1])
+	SetKeyExchange(client, true)
+	SendPacket(client, MakePacket(4, nil))
+	log.DebugPrintSuccess(client.RemoteAddr()," key交换成功")
+	return nil
+}
+func ReadFromClient(where net.Conn) ([]byte,error){
+	headerbuf:=make([]byte,4)
+	n,err:=where.Read(headerbuf)
+	if n<4 ||err!=nil{
+		return nil,errors.New("read header error ")
+	}
+	AESKey:=GetAESKey(where)
+	if AESKey==nil{
+		AESKey=util.GetAESKeyByDay()
+	}
+	header:=headerbuf[:4]
+	headerDecode,_:=util.DecryptAES(header,AESKey)
+	if headerDecode[0]!=0xFB || headerDecode[3]!=0xFC{
+		return nil,errors.New("deheader error")
+	}
+	buflen:=int(headerDecode[1])+int(headerDecode[2])*256
+	buf:=make([]byte,buflen)
+	pos:=0
+	for{
+		n,err:=where.Read(buf[pos:])
+		if err!=nil{
+			return nil,errors.New("read body error")
+		}
+		buflen-=n
+		pos+=n
+		if buflen<0{
+			return nil,errors.New("body len error")
+		}
+		if buflen==0{
+			break
+		}
+	}
+	decodeBuf,_:=util.DecryptAES(buf,AESKey)
+	return decodeBuf,nil
 }
 func ServeClient(client net.Conn,c chan Packet){
 	defer func(){
 		close(c)
+		if GetIsConnected(client){
+			GetRemoteConn(client).Close()
+		}
 		DisconnectAndDeleteUser(client)
 		log.DebugPrintAlert(client.RemoteAddr(),"连接线程关闭")
 	}()
-	buf:=make([]byte,65536)
 	for{
-		n,err:=client.Read(buf)
+		buf,err:=ReadFromClient(client)
 		if err!=nil{
 			return
 		}
-		if Users[client.RemoteAddr()].IsKeyExchange{
-		   newbuf,err:=util.DecryptAES(buf,Users[client.RemoteAddr()].AESKey)
-			if err!=nil{
-				continue
-			}
-			buf=nil
-			buf=newbuf
-		}
-		command,data,derr:=DePacket(buf[0:n])
-		if derr!=nil{
+		if !GetIsKeyExchange(client){
+			log.DebugPrintSuccess(client.RemoteAddr()," key交换开始")
+			SaveAESKey(buf,client)
 			continue
 		}
+		if GetIsConnected(client){
+			c<-Packet{command:0,data:buf}
+			continue
+		}
+		command,data,derr:=DePacket(buf)
+		if derr!=nil{
+			continue
+			}
 		c<-Packet{command:command,data:data}
+		//fmt.Println(command)
+		//newbuf,err:=util.DecryptAES(buf[:n],GetAESKey(client))
+		//if err!=nil{
+		//	continue
+		//}
+		//if GetIsConnected(client){
+		//	GetRemoteConn(client).Write(newbuf)
+		//}else{
+		//	command,data,derr:=DePacket(newbuf)
+		//	if derr!=nil{
+		//		continue
+		//	}
+		//	c<-Packet{command:command,data:data}
+		//}
+
 	}
 }
 /*
@@ -117,6 +200,7 @@ func ServeClient(client net.Conn,c chan Packet){
 命令A代表用户发送过来的公钥没法加密
 命令E1代表IP地址格式错误
 命令E2代表连接失败
+命令C1代表成功连接
 
 命令FF代表指令没法识别
 */
@@ -128,19 +212,19 @@ func String(b []byte) (s string) {
 	return
 }
 func DecodeConnectPacketAndCheck(data []byte)(string,error){
-	if len(data)>21 || len(data)<9{
+	ip:=util.B2s(data)
+	host,port,SplitErr:=_NET.SplitHostPort(ip)
+	if SplitErr!=nil{
 		return "",errors.New("error1")
 	}
-	ip:=String(data)
-	p1:=strings.IndexByte(ip,':')
-	if p1<7 || p1>15{
+	ips,ResolveErr:=net.ResolveIPAddr("ip4",host)
+	if ResolveErr!=nil{
 		return "",errors.New("error2")
 	}
-	ips:=net.ParseIP(ip[:p1])
-	if ips.String()=="test" {
-		return "",errors.New("error3")
+	if ips.IP.IsLoopback(){
+
 	}
-	return ip,nil
+	return ips.String()+":"+port,nil
 }
 func ServeCommand(client net.Conn,c chan Packet) {
 	defer func(){
@@ -148,85 +232,92 @@ func ServeCommand(client net.Conn,c chan Packet) {
 		log.DebugPrintAlert(client.RemoteAddr(),"处理线程关闭")
 	}()
 	for packet:=range c{
-		if Users[client.RemoteAddr()].IsKeyExchange==false {
-			if packet.command == 0x1 {
-				PublicKeyBuf, PublicKeyErr := ioutil.ReadFile("public.pem")
-				if PublicKeyErr != nil {
-					log.PrintPanic("公钥文件丢失！！系统强制退出")
-				}
-				SendPacket(client, MakePacket(1, PublicKeyBuf))
-				continue
-			} else if packet.command == 0x2 {
-				Debuf, DeErr := util.DecryptRSA(packet.data)
-				if DeErr != nil || len(Debuf) != 32 {
-					SendPacketAndDisconnect(client, MakePacket(3, nil))
-					return
-				}
-				SetKeyExchange(client, true)
-				SetAuthed(client, true) //debug!!!!!!!!!!!!!!!!!
-				SetAESKey(client, Debuf)
-				SendPacket(client, MakePacket(4, nil))
-				continue
-			} else {
-				SendPacketAndDisconnect(client, MakePacket(2, nil))
-				return
-			}
-		}
-		if Users[client.RemoteAddr()].IsAuth==false{
-			RetryTimePlus(client)
-			if Users[client.RemoteAddr()].RetryTime>4{
-				SendPacketAndDisconnect(client, MakePacket(9, nil))
-				return
-			}
-			switch packet.command {
-			case 4:
-				key := packet.data
-				EncryptRandom, EncryptRandomErr := util.EncryptRSAWithKey(Users[client.RemoteAddr()].RandomData, key)
-				if EncryptRandomErr != nil {
-					SendPacket(client, MakePacket(0xA, nil))
-					continue
-				}
-				SendPacket(client, MakePacket(5, EncryptRandom))
-				SetPublicKeyFlag(client, true)
-			case 5:
-				if Users[client.RemoteAddr()].PublicKeyFlag == false {
-					SendPacket(client, MakePacket(0xff, nil))
-					continue
-				}
-				if bytes.Compare(packet.data, Users[client.RemoteAddr()].RandomData) == 0 {
-					SetAuthed(client, true)
-					SendPacket(client, MakePacket(7, nil))
-					continue
-				} else {
-					SetAuthed(client, false)
-					SendPacket(client, MakePacket(8, nil))
-					continue
-				}
-			default:
-				SendPacketAndDisconnect(client, MakePacket(0xff, nil))
-				return
-
-			}
-		}
-		if Users[client.RemoteAddr()].IsConnected==false{
+		//if GetIsAuth(client)==false{
+		//	RetryTimePlus(client)
+		//	if GetRetryTime(client)>4{
+		//		SendPacketAndDisconnect(client, MakePacket(9, nil))
+		//		return
+		//	}
+		//	switch packet.command {
+		//	case 4:
+		//		key := packet.data
+		//		EncryptRandom, EncryptRandomErr := util.EncryptRSAWithKey(GetRandomData(client), key)
+		//		if EncryptRandomErr != nil {
+		//			SendPacket(client, MakePacket(0xA, nil))
+		//			continue
+		//		}
+		//		SendPacket(client, MakePacket(5, EncryptRandom))
+		//		SetPublicKeyFlag(client, true)
+		//	case 5:
+		//		if GetPublicKeyFlag(client) == false {
+		//			SendPacket(client, MakePacket(0xff, nil))
+		//			continue
+		//		}
+		//		if bytes.Compare(packet.data, GetRandomData(client)) == 0 {
+		//			SetAuthed(client, true)
+		//			SendPacket(client, MakePacket(7, nil))
+		//			continue
+		//		} else {
+		//			SetAuthed(client, false)
+		//			SendPacket(client, MakePacket(8, nil))
+		//			continue
+		//		}
+		//	default:
+		//		SendPacketAndDisconnect(client, MakePacket(0xff, nil))
+		//		return
+		//
+		//	}
+		//}
+		if GetIsConnected(client)==false{
 			if packet.command==0xA1{
 				address,DecodeConnectPacketErr:=DecodeConnectPacketAndCheck(packet.data)
 				if DecodeConnectPacketErr!=nil{
 					SendPacketAndDisconnect(client, MakePacket(0xE1, nil))
 					return
 				}
-				proxyconn,dailerr:=net.DialTimeout("tcp",address, time.Second * 3)
+				ProxyConn,dailerr:=net.Dial("tcp",address)
 				log.DebugPrintNormal("客户端",client.RemoteAddr(),"想要代理",address)
 				if dailerr!=nil{
 					log.DebugPrintNormal("客户端",client.RemoteAddr(),"想要代理",address,"但连接失败了")
 					SendPacketAndDisconnect(client, MakePacket(0xE2, nil))
+					return
 				}
+				log.DebugPrintNormal("客户端",client.RemoteAddr(),"想要代理",address,"，连接成功")
 				SetConnected(client,true)
-				SetRemoteConn(client,proxyconn)
+				SetRemoteConn(client,ProxyConn)
+				SendPacket(client, MakePacket(0xC1, nil))
+				go ProxyRecvHandle(c,ProxyConn,client)
+				//SendPacket(client, MakePacket(0xC1, nil))
+				ProxySendHandle(c,ProxyConn)
+				//return
 			}
 		}
 	}
 }
+//从远端接受发给用户
+func ProxyRecvHandle(c chan Packet,remote net.Conn,client net.Conn){
+	defer func(){
+		client.Close()
+		log.DebugPrintAlert(client.RemoteAddr(),"代理线程关闭")
+	}()
+	buf:=make([]byte,1024)
+	for{
+		n,err:=remote.Read(buf)
+		if err!=nil{
+			return
+		}
+		SendPacket(client,buf[:n])
+	}
+}
+func ProxySendHandle(c chan Packet,Remote net.Conn){
+	for packet:=range c{
+		switch packet.command {
+			case 0:
+				SendRawPacket(Remote,packet.data)
+		}
+	}
+}
+
 func StartServer(){
 	l,err:=net.Listen("tcp",":"+config.Config.ServerPort)
 	if err!=nil{
@@ -234,13 +325,14 @@ func StartServer(){
 		os.Exit(-1)
 	}
 	Server=&l
-	go StartHeartbeat()
+	//go StartHeartbeat()
 	log.PrintSuccess("服务端启动成功")
 	for {
 		client, _ := l.Accept()
 		//delete(Users,client.RemoteAddr()) //BUG!!!!!
 		AddUser(client)
-		c:=make(chan Packet,10)
+		SendPacket(client,util.GetPublicKey())
+		c:=make(chan Packet,128)
 		go ServeClient(client,c)
 		go ServeCommand(client,c)
 	}

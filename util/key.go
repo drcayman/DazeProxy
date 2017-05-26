@@ -11,6 +11,9 @@ import (
 	"crypto/aes"
 	"DazeProxy/log"
 	"errors"
+	"strconv"
+	"time"
+	"strings"
 )
 
 func GenRsaKey(bits int) error {
@@ -127,4 +130,20 @@ func EncryptAES(data []byte,key []byte) ([]byte,error){
 	encoded:=make([]byte,len(data))
 	Decrypter.XORKeyStream(encoded,data)
 	return encoded,CipherErr
+}
+func GetPublicKey() []byte{
+	PublicKeyBuf, PublicKeyErr := ioutil.ReadFile("public.pem")
+	if PublicKeyErr != nil {
+		log.PrintPanic("公钥文件丢失！！系统强制退出")
+	}
+	block,_:=pem.Decode(PublicKeyBuf)
+	return block.Bytes
+}
+func GetAESKeyByDay() []byte{
+	daystr:=strconv.FormatInt(int64(time.Now().UTC().Day()),10)
+	if len(daystr)==1{
+		return []byte(strings.Repeat(daystr,16))
+	}else{
+		return []byte(strings.Repeat(daystr,8))
+	}
 }
