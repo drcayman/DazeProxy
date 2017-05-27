@@ -54,15 +54,12 @@ func DePacket(buf []byte) (byte,[]byte,error){
 	}
 	return buf[1],buf[4:4+ContentLen],nil
 }
-func SendPacket(client net.Conn,data []byte){
+func SendPacket(client *User,data []byte){
 	var bufffer *bytes.Buffer
 	var buf []byte
 	var AESKey []byte
-	if GetAvailable(client)==false{
-		return
-	}
-	if GetIsKeyExchange(client) {
-		AESKey = GetAESKey(client)
+	if client.IsKeyExchange {
+		AESKey = client.AESKey
 	}else{
 		AESKey= util.GetAESKeyByDay()
 	}
@@ -71,38 +68,33 @@ func SendPacket(client net.Conn,data []byte){
 	buf,_=util.EncryptAES([]byte{0xFB,byte(datelen%0x100),byte(datelen/0x100),0xFC},AESKey)
 	bufffer=bytes.NewBuffer(buf)
 	bufffer.Write(data)
-	//fmt.Println("发送了",len(bufffer.Bytes()))
-	client.Write(bufffer.Bytes())
+	client.Conn.Write(bufffer.Bytes())
 }
-func SendRawPacket(client net.Conn,data []byte){
-	client.Write(data)
-}
-func SendPacketAndDisconnect(client net.Conn,data []byte){
+func SendPacketAndDisconnect(client *User,data []byte){
 	SendPacket(client,data)
-	client.Close()
+	client.Conn.Close()
 	//DisconnectAndDeleteUser(client)
 }
-func SaveAESKey(buf []byte,client net.Conn) error{
+func SaveAESKey(buf []byte,client *User) error{
 	Debuf, DeErr := util.DecryptRSA(buf)
 	log.DebugPrintSuccess("key解码前长度：",len(buf),"key解码后长度：",len(Debuf))
 	if DeErr != nil ||Debuf[len(Debuf)-1]!=0xFF|| len(Debuf) != 33 {
-		client.Close()
 		return errors.New("AESKey Error")
 	}
-	SetAuthed(client, true) //debug!!!!!!!!!!!!!!!!!
-	SetAESKey(client, Debuf[:len(Debuf)-1])
-	SetKeyExchange(client, true)
+	client.IsAuth=true
+	client.AESKey= Debuf[:len(Debuf)-1]
+	client.IsKeyExchange=true
 	SendPacket(client, MakePacket(4, nil))
-	log.DebugPrintSuccess(client.RemoteAddr()," key交换成功")
+	log.DebugPrintSuccess(client.Conn.RemoteAddr()," key交换成功")
 	return nil
 }
-func ReadFromClient(where net.Conn) ([]byte,error){
+func ReadFromClient(client *User) ([]byte,error){
 	headerbuf:=make([]byte,4)
-	n,err:=where.Read(headerbuf)
+	n,err:=client.Conn.Read(headerbuf)
 	if n<4 ||err!=nil{
 		return nil,errors.New("read header error ")
 	}
-	AESKey:=GetAESKey(where)
+	AESKey:=client.AESKey
 	if AESKey==nil{
 		AESKey=util.GetAESKeyByDay()
 	}
@@ -115,7 +107,7 @@ func ReadFromClient(where net.Conn) ([]byte,error){
 	buf:=make([]byte,buflen)
 	pos:=0
 	for{
-		n,err:=where.Read(buf[pos:])
+		n,err:=client.Conn.Read(buf[pos:])
 		if err!=nil{
 			return nil,errors.New("read body error")
 		}
@@ -131,49 +123,40 @@ func ReadFromClient(where net.Conn) ([]byte,error){
 	decodeBuf,_:=util.DecryptAES(buf,AESKey)
 	return decodeBuf,nil
 }
-func ServeClient(client net.Conn,c chan Packet){
+func ServeClient(client *User){
+	flag:=0
 	defer func(){
-		close(c)
-		if GetIsConnected(client){
-			GetRemoteConn(client).Close()
+		if flag==0{
+			client.Conn.Close()
+			close(client.AuthHeartBeat)
+			close(client.UDPAliveTime)
+			log.DebugPrintAlert(client.Conn.RemoteAddr(),"连接线程关闭")
+			return
 		}
-		DisconnectAndDeleteUser(client)
-		log.DebugPrintAlert(client.RemoteAddr(),"连接线程关闭")
+		log.DebugPrintAlert(client.Conn.RemoteAddr(),"连接线程已进入代理模式")
 	}()
 	for{
 		buf,err:=ReadFromClient(client)
 		if err!=nil{
 			return
 		}
-		if !GetIsKeyExchange(client){
-			log.DebugPrintSuccess(client.RemoteAddr()," key交换开始")
-			SaveAESKey(buf,client)
-			continue
-		}
-		if GetIsConnected(client){
-			c<-Packet{command:0,data:buf}
+		if !client.IsKeyExchange{
+			log.DebugPrintSuccess(client.Conn.RemoteAddr()," key交换开始")
+			SaveAESErr:=SaveAESKey(buf,client)
+			if SaveAESErr!=nil{
+				return
+			}
+			client.AuthHeartBeat<-1
 			continue
 		}
 		command,data,derr:=DePacket(buf)
 		if derr!=nil{
 			continue
-			}
-		c<-Packet{command:command,data:data}
-		//fmt.Println(command)
-		//newbuf,err:=util.DecryptAES(buf[:n],GetAESKey(client))
-		//if err!=nil{
-		//	continue
-		//}
-		//if GetIsConnected(client){
-		//	GetRemoteConn(client).Write(newbuf)
-		//}else{
-		//	command,data,derr:=DePacket(newbuf)
-		//	if derr!=nil{
-		//		continue
-		//	}
-		//	c<-Packet{command:command,data:data}
-		//}
-
+		}
+		flag=ServeCommand(client,command,data)
+		if flag==1{
+			return
+		}
 	}
 }
 /*
@@ -226,111 +209,78 @@ func DecodeConnectPacketAndCheck(data []byte)(string,error){
 	}
 	return ips.String()+":"+port,nil
 }
-func ServeCommand(client net.Conn,c chan Packet) {
-	defer func(){
-		client.Close()
-		log.DebugPrintAlert(client.RemoteAddr(),"处理线程关闭")
-	}()
-	for packet:=range c{
-		//if GetIsAuth(client)==false{
-		//	RetryTimePlus(client)
-		//	if GetRetryTime(client)>4{
-		//		SendPacketAndDisconnect(client, MakePacket(9, nil))
-		//		return
-		//	}
-		//	switch packet.command {
-		//	case 4:
-		//		key := packet.data
-		//		EncryptRandom, EncryptRandomErr := util.EncryptRSAWithKey(GetRandomData(client), key)
-		//		if EncryptRandomErr != nil {
-		//			SendPacket(client, MakePacket(0xA, nil))
-		//			continue
-		//		}
-		//		SendPacket(client, MakePacket(5, EncryptRandom))
-		//		SetPublicKeyFlag(client, true)
-		//	case 5:
-		//		if GetPublicKeyFlag(client) == false {
-		//			SendPacket(client, MakePacket(0xff, nil))
-		//			continue
-		//		}
-		//		if bytes.Compare(packet.data, GetRandomData(client)) == 0 {
-		//			SetAuthed(client, true)
-		//			SendPacket(client, MakePacket(7, nil))
-		//			continue
-		//		} else {
-		//			SetAuthed(client, false)
-		//			SendPacket(client, MakePacket(8, nil))
-		//			continue
-		//		}
-		//	default:
-		//		SendPacketAndDisconnect(client, MakePacket(0xff, nil))
-		//		return
-		//
-		//	}
-		//}
-		if GetIsConnected(client)==false{
-			if packet.command==0xA1 || packet.command==0xA2{
-				network:="tcp"
-				if packet.command==0xA2{
-					network="udp"
-				}
-				address,DecodeConnectPacketErr:=DecodeConnectPacketAndCheck(packet.data)
-				if DecodeConnectPacketErr!=nil{
-					SendPacketAndDisconnect(client, MakePacket(0xE1, nil))
-					return
-				}
-				ProxyConn,dailerr:=net.Dial(network,address)
-				log.DebugPrintNormal("客户端",client.RemoteAddr(),"想要代理",network,address)
-				if dailerr!=nil{
-					log.DebugPrintNormal("客户端",client.RemoteAddr(),"想要代理",network,address,"但连接失败了")
-					SendPacketAndDisconnect(client, MakePacket(0xE2, nil))
-					return
-				}
-				log.DebugPrintNormal("客户端",client.RemoteAddr(),"想要代理",network,address,"，连接成功")
-				SetNetwork(client,network)
-				if network=="udp"{
-					SetUDPAliveTime(client)
-				}
-				SetConnected(client,true)
-				SetRemoteConn(client,ProxyConn)
-				SendPacket(client, MakePacket(0xC1, []byte(ProxyConn.RemoteAddr().String())))
-				go ProxyRecvHandle(c,ProxyConn,client)
-				//SendPacket(client, MakePacket(0xC1, nil))
-				ProxySendHandle(c,ProxyConn,network=="udp",client)
-				continue
+func ServeCommand(client *User,command byte,data []byte) int {
+		if command==0xA1 || command==0xA2{
+			network:="tcp"
+			if command==0xA2{
+				network="udp"
 			}
-		}else{
+			address,DecodeConnectPacketErr:=DecodeConnectPacketAndCheck(data)
+			if DecodeConnectPacketErr!=nil{
+				SendPacketAndDisconnect(client, MakePacket(0xE1, nil))
+				return 0
+			}
+			ProxyConn,dailerr:=net.Dial(network,address)
+			log.DebugPrintNormal("客户端",client.Conn.RemoteAddr(),"想要代理",network,address)
+			if dailerr!=nil{
+				log.DebugPrintNormal("客户端",client.Conn.RemoteAddr(),"想要代理",network,address,"但连接失败了")
+				SendPacketAndDisconnect(client, MakePacket(0xE2, nil))
+				return 0
+			}
+			log.DebugPrintNormal("客户端",client.Conn.RemoteAddr(),"想要代理",network,address,"，连接成功")
+			client.Network=network
+			client.IsConnected=true
+			//SetRemoteConn(client,ProxyConn)
+			SendPacket(client, MakePacket(0xC1, []byte(ProxyConn.RemoteAddr().String())))
+			go BridgeClientToRemote(client,ProxyConn)
+			go BridgeRemoteToClient(client,ProxyConn)
+			return 1
+		}
+	return 0
+}
+func BridgeClientToRemote(client *User,Remote net.Conn){
+	defer func(){
+		client.Conn.Close()
+		Remote.Close()
+		client.Locker.Lock()
+		if !client.ChanCloseFlag{
+			close(client.AuthHeartBeat)
+			close(client.UDPAliveTime)
+		}
+		client.ChanCloseFlag=true
+		client.Locker.Unlock()
+		log.DebugPrintAlert(client.Conn.RemoteAddr(),"BCTR退出")
+	}()
+	for{
+		buf,err:=ReadFromClient(client)
+		if err!=nil{
 			return
 		}
-
+		Remote.Write(buf)
 	}
 }
-func ProxyRecvHandle(c chan Packet,remote net.Conn,client net.Conn){
+func BridgeRemoteToClient(client *User,Remote net.Conn){
 	defer func(){
-		client.Close()
-		log.DebugPrintAlert(client.RemoteAddr(),"代理线程关闭")
+		Remote.Close()
+		client.Conn.Close()
+		client.Locker.Lock()
+		if !client.ChanCloseFlag{
+			close(client.AuthHeartBeat)
+			close(client.UDPAliveTime)
+		}
+		client.ChanCloseFlag=true
+		client.Locker.Unlock()
+		log.DebugPrintAlert(client.Conn.RemoteAddr(),"BRTC退出")
 	}()
 	buf:=make([]byte,1024)
 	for{
-		n,err:=remote.Read(buf)
+		n,err:=Remote.Read(buf)
 		if err!=nil{
 			return
 		}
 		SendPacket(client,buf[:n])
 	}
 }
-func ProxySendHandle(c chan Packet,Remote net.Conn,IsUDP bool,client net.Conn){
-	for packet:=range c{
-		switch packet.command {
-			case 0:
-				SendRawPacket(Remote,packet.data)
-				if IsUDP{
-					SetUDPAliveTime(client)
-				}
-		}
-	}
-}
-
 func StartServer(){
 	l,err:=net.Listen("tcp",":"+config.Config.ServerPort)
 	if err!=nil{
@@ -338,15 +288,20 @@ func StartServer(){
 		os.Exit(-1)
 	}
 	Server=&l
-	go StartHeartbeat()
+	//go StartHeartbeat()
 	log.PrintSuccess("服务端启动成功")
 	for {
-		client, _ := l.Accept()
+		conn, AcceptErr := l.Accept()
 		//delete(Users,client.RemoteAddr()) //BUG!!!!!
-		AddUser(client)
+		if AcceptErr!=nil{
+			log.DebugPrintPanicWithoutExit("接受失败！",AcceptErr.Error())
+			continue
+		}
+		log.DebugPrintNormal("客户端",conn.RemoteAddr(),"连接")
+		//AddUser(client)
+		client:=NewUser(conn)
+		go NewHeartBeatCountDown(client.AuthHeartBeat,5,client,"Auth or Connect")
 		SendPacket(client,util.GetPublicKey())
-		c:=make(chan Packet,128)
-		go ServeClient(client,c)
-		go ServeCommand(client,c)
+		go ServeClient(client)
 	}
 }
