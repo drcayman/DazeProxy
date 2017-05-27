@@ -269,32 +269,42 @@ func ServeCommand(client net.Conn,c chan Packet) {
 		//	}
 		//}
 		if GetIsConnected(client)==false{
-			if packet.command==0xA1{
+			if packet.command==0xA1 || packet.command==0xA2{
+				network:="tcp"
+				if packet.command==0xA2{
+					network="udp"
+				}
 				address,DecodeConnectPacketErr:=DecodeConnectPacketAndCheck(packet.data)
 				if DecodeConnectPacketErr!=nil{
 					SendPacketAndDisconnect(client, MakePacket(0xE1, nil))
 					return
 				}
-				ProxyConn,dailerr:=net.Dial("tcp",address)
-				log.DebugPrintNormal("客户端",client.RemoteAddr(),"想要代理",address)
+				ProxyConn,dailerr:=net.Dial(network,address)
+				log.DebugPrintNormal("客户端",client.RemoteAddr(),"想要代理",network,address)
 				if dailerr!=nil{
-					log.DebugPrintNormal("客户端",client.RemoteAddr(),"想要代理",address,"但连接失败了")
+					log.DebugPrintNormal("客户端",client.RemoteAddr(),"想要代理",network,address,"但连接失败了")
 					SendPacketAndDisconnect(client, MakePacket(0xE2, nil))
 					return
 				}
-				log.DebugPrintNormal("客户端",client.RemoteAddr(),"想要代理",address,"，连接成功")
+				log.DebugPrintNormal("客户端",client.RemoteAddr(),"想要代理",network,address,"，连接成功")
+				SetNetwork(client,network)
+				if network=="udp"{
+					SetUDPAliveTime(client)
+				}
 				SetConnected(client,true)
 				SetRemoteConn(client,ProxyConn)
 				SendPacket(client, MakePacket(0xC1, nil))
 				go ProxyRecvHandle(c,ProxyConn,client)
 				//SendPacket(client, MakePacket(0xC1, nil))
-				ProxySendHandle(c,ProxyConn)
-				//return
+				ProxySendHandle(c,ProxyConn,network=="udp",client)
+				continue
 			}
+		}else{
+			return
 		}
+
 	}
 }
-//从远端接受发给用户
 func ProxyRecvHandle(c chan Packet,remote net.Conn,client net.Conn){
 	defer func(){
 		client.Close()
@@ -309,11 +319,14 @@ func ProxyRecvHandle(c chan Packet,remote net.Conn,client net.Conn){
 		SendPacket(client,buf[:n])
 	}
 }
-func ProxySendHandle(c chan Packet,Remote net.Conn){
+func ProxySendHandle(c chan Packet,Remote net.Conn,IsUDP bool,client net.Conn){
 	for packet:=range c{
 		switch packet.command {
 			case 0:
 				SendRawPacket(Remote,packet.data)
+				if IsUDP{
+					SetUDPAliveTime(client)
+				}
 		}
 	}
 }
@@ -325,7 +338,7 @@ func StartServer(){
 		os.Exit(-1)
 	}
 	Server=&l
-	//go StartHeartbeat()
+	go StartHeartbeat()
 	log.PrintSuccess("服务端启动成功")
 	for {
 		client, _ := l.Accept()

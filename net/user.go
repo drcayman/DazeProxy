@@ -18,6 +18,8 @@ type User struct {
 	RandomData []byte
 	RetryTime int
 	RemoteConn net.Conn
+	UDPAliveTime time.Time
+	Network string
 }
 var lock sync.Mutex
 func GetIsKeyExchange(conn net.Conn) bool {
@@ -26,6 +28,13 @@ func GetIsKeyExchange(conn net.Conn) bool {
 	}()
 	lock.Lock()
 	return Users[conn.RemoteAddr()].IsKeyExchange
+}
+func GetNetwork(conn net.Conn) string{
+	defer func(){
+		lock.Unlock()
+	}()
+	lock.Lock()
+	return Users[conn.RemoteAddr()].Network
 }
 func GetAESKey(conn net.Conn) []byte {
 	defer func(){
@@ -111,8 +120,17 @@ func SetAESKey(conn net.Conn,key []byte){
 func SetAuthed(conn net.Conn,IsAuthed bool){
 	RunCommand(MapCommand{Command:6,Conn:conn,Bool:IsAuthed})
 }
+func SetNetwork(conn net.Conn,Network string){
+	RunCommand(MapCommand{Command:10,Conn:conn,Data:[]byte(Network)})
+}
+func StartOnceHBCheck(){
+	RunCommand(MapCommand{Command:2})
+}
 func RetryTimePlus(conn net.Conn){
-	RunCommand(MapCommand{Command:7})
+	RunCommand(MapCommand{Conn:conn,Command:7})
+}
+func SetUDPAliveTime(conn net.Conn){
+	RunCommand(MapCommand{Conn:conn,Command:11})
 }
 func RunCommand(command MapCommand){
 	lock.Lock()
@@ -149,7 +167,9 @@ func MapCommandThread(){
 			RetryTime:0,
 			IsConnected:false,
 			AESKey:nil,
+			UDPAliveTime:time.Now(),
 			}
+		case 2:HeartbeatCheck()
 		case 3:(Users[c.Conn.RemoteAddr()]).IsKeyExchange=c.Bool
 		case 4:	(Users[c.Conn.RemoteAddr()]).AESKey=c.Data
 		case 5:	(Users[c.Conn.RemoteAddr()]).PublicKeyFlag=c.Bool
@@ -157,6 +177,8 @@ func MapCommandThread(){
 		case 7:	(Users[c.Conn.RemoteAddr()]).RetryTime++
 		case 8:	(Users[c.Conn.RemoteAddr()]).IsConnected=c.Bool
 		case 9:	(Users[c.Conn.RemoteAddr()]).RemoteConn=c.RemoteConn
+		case 10:(Users[c.Conn.RemoteAddr()]).Network=util.B2s(c.Data)
+		case 11:(Users[c.Conn.RemoteAddr()]).UDPAliveTime=time.Now()
 		}
 		c.Locker.Unlock()
 	}
