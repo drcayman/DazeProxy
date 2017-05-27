@@ -293,7 +293,7 @@ func ServeCommand(client net.Conn,c chan Packet) {
 				}
 				SetConnected(client,true)
 				SetRemoteConn(client,ProxyConn)
-				SendPacket(client, MakePacket(0xC1, nil))
+				SendPacket(client, MakePacket(0xC1, []byte(ProxyConn.RemoteAddr().String())))
 				go ProxyRecvHandle(c,ProxyConn,client)
 				//SendPacket(client, MakePacket(0xC1, nil))
 				ProxySendHandle(c,ProxyConn,network=="udp",client)
