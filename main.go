@@ -9,9 +9,9 @@ import (
 
 
 func main(){
-
 	util.CheckLicense()
 	util.CheckKeyAndGen()
-	net.StartServer()
+	go net.StartServerIP6(true)
+	net.StartServerIP4(true)
 
 }

@@ -189,20 +189,31 @@ func String(b []byte) (s string) {
 	pstring.Len = pbytes.Len
 	return
 }
-func DecodeConnectPacketAndCheck(data []byte)(string,error){
+func DecodeConnectPacketAndCheck(data []byte,client *User)(string,error){
+	var ips *_NET.IPAddr
+	var ResolveErr error=nil
 	ip:=util.B2s(data)
 	host,port,SplitErr:=_NET.SplitHostPort(ip)
 	if SplitErr!=nil{
 		return "",errors.New("error1")
 	}
-	ips,ResolveErr:=net.ResolveIPAddr("ip4",host)
+	if client.IPv6ResolvePrefer{
+		ips,ResolveErr=_NET.ResolveIPAddr("ip6",host)
+	}
+	if ips==nil{
+		ips,ResolveErr=net.ResolveIPAddr("ip",host)
+	}
 	if ResolveErr!=nil{
 		return "",errors.New("error2")
 	}
 	if ips.IP.IsLoopback(){
 
 	}
-	return ips.String()+":"+port,nil
+	ipstring:=ips.String()
+	if len(ipstring)>15{
+		ipstring="["+ipstring+"]"
+	}
+	return ipstring+":"+port,nil
 }
 func ServeCommand(client *User,command byte,data []byte) int {
 		if command==0xA1 || command==0xA2{
@@ -210,7 +221,7 @@ func ServeCommand(client *User,command byte,data []byte) int {
 			if command==0xA2{
 				network="udp"
 			}
-			address,DecodeConnectPacketErr:=DecodeConnectPacketAndCheck(data)
+			address,DecodeConnectPacketErr:=DecodeConnectPacketAndCheck(data,client)
 			if DecodeConnectPacketErr!=nil{
 				SendPacketAndDisconnect(client, MakePacket(0xE1, nil))
 				return 0
@@ -272,15 +283,15 @@ func BridgeRemoteToClient(client *User,Remote net.Conn){
 		SendPacket(client,buf[:n])
 	}
 }
-func StartServer(){
-	l,err:=net.Listen("tcp",":"+config.Config.ServerPort)
+func StartServerIP4(ipv6ResolvePrefer bool){
+	l,err:=net.Listen("tcp4",":"+config.Config.ServerPort)
 	if err!=nil{
-		log.PrintPanic("服务端启动失败（原因：",err.Error(),")")
+		log.PrintPanic("IPv4服务端启动失败（原因：",err.Error(),")")
 		os.Exit(-1)
 	}
-	Server=&l
+	//Server=&l
 	//go StartHeartbeat()
-	log.PrintSuccess("服务端启动成功")
+	log.PrintSuccess("IPv4服务端启动成功")
 	for {
 		conn, AcceptErr := l.Accept()
 		//delete(Users,client.RemoteAddr()) //BUG!!!!!
@@ -291,6 +302,32 @@ func StartServer(){
 		log.DebugPrintNormal("客户端",conn.RemoteAddr(),"连接")
 		//AddUser(client)
 		client:=NewUser(conn)
+		client.IPv6ResolvePrefer=ipv6ResolvePrefer
+		go NewHeartBeatCountDown(client.AuthHeartBeat,5,client,"Auth or Connect")
+		SendPacket(client,util.GetPublicKey())
+		go ServeClient(client)
+	}
+}
+func StartServerIP6(ipv6ResolvePrefer bool){
+	l,err:=net.Listen("tcp6",":"+config.Config.ServerPort)
+	if err!=nil{
+		log.PrintPanic("IPv6服务端启动失败（原因：",err.Error(),")")
+		os.Exit(-1)
+	}
+	//Server=&l
+	//go StartHeartbeat()
+	log.PrintSuccess("IPv6服务端启动成功")
+	for {
+		conn, AcceptErr := l.Accept()
+		//delete(Users,client.RemoteAddr()) //BUG!!!!!
+		if AcceptErr!=nil{
+			log.DebugPrintPanicWithoutExit("接受失败！",AcceptErr.Error())
+			continue
+		}
+		log.DebugPrintNormal("客户端",conn.RemoteAddr(),"连接")
+		//AddUser(client)
+		client:=NewUser(conn)
+		client.IPv6ResolvePrefer=ipv6ResolvePrefer
 		go NewHeartBeatCountDown(client.AuthHeartBeat,5,client,"Auth or Connect")
 		SendPacket(client,util.GetPublicKey())
 		go ServeClient(client)

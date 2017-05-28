@@ -20,6 +20,7 @@ type User struct {
 	Network string
 	Locker sync.Mutex
 	ChanCloseFlag bool
+	IPv6ResolvePrefer bool
 }
 func NewUser(conn net.Conn) *User{
 	return &User{
