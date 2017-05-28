@@ -14,11 +14,6 @@ import (
 	_NET "net"
 )
 var Server *net.Listener
-
-type Packet struct {
-	command byte
-	data []byte
-}
 //F1 01 00 04 31 32 33 34 F2
 //F1为头部
 //01为命令
@@ -230,7 +225,6 @@ func ServeCommand(client *User,command byte,data []byte) int {
 			log.DebugPrintNormal("客户端",client.Conn.RemoteAddr(),"想要代理",network,address,"，连接成功")
 			client.Network=network
 			client.IsConnected=true
-			//SetRemoteConn(client,ProxyConn)
 			SendPacket(client, MakePacket(0xC1, []byte(ProxyConn.RemoteAddr().String())))
 			go BridgeClientToRemote(client,ProxyConn)
 			go BridgeRemoteToClient(client,ProxyConn)
@@ -238,17 +232,20 @@ func ServeCommand(client *User,command byte,data []byte) int {
 		}
 	return 0
 }
+func CloseChan(client *User) {
+	client.Locker.Lock()
+	if !client.ChanCloseFlag{
+	close(client.AuthHeartBeat)
+	close(client.UDPAliveTime)
+	}
+	client.ChanCloseFlag=true
+	client.Locker.Unlock()
+}
 func BridgeClientToRemote(client *User,Remote net.Conn){
 	defer func(){
 		client.Conn.Close()
 		Remote.Close()
-		client.Locker.Lock()
-		if !client.ChanCloseFlag{
-			close(client.AuthHeartBeat)
-			close(client.UDPAliveTime)
-		}
-		client.ChanCloseFlag=true
-		client.Locker.Unlock()
+		CloseChan(client)
 		log.DebugPrintAlert(client.Conn.RemoteAddr(),"BCTR退出")
 	}()
 	for{
@@ -263,13 +260,7 @@ func BridgeRemoteToClient(client *User,Remote net.Conn){
 	defer func(){
 		Remote.Close()
 		client.Conn.Close()
-		client.Locker.Lock()
-		if !client.ChanCloseFlag{
-			close(client.AuthHeartBeat)
-			close(client.UDPAliveTime)
-		}
-		client.ChanCloseFlag=true
-		client.Locker.Unlock()
+		CloseChan(client)
 		log.DebugPrintAlert(client.Conn.RemoteAddr(),"BRTC退出")
 	}()
 	buf:=make([]byte,1024)
