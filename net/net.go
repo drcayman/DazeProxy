@@ -12,6 +12,8 @@ import (
 	"reflect"
 	"unsafe"
 	_NET "net"
+	"math/rand"
+	"time"
 )
 var Server *net.Listener
 //F1 01 00 04 31 32 33 34 F2
@@ -51,19 +53,26 @@ func DePacket(buf []byte) (byte,[]byte,error){
 }
 func SendPacket(client *User,data []byte){
 	var bufffer *bytes.Buffer
-	var buf []byte
 	var AESKey []byte
 	if client.IsKeyExchange {
 		AESKey = client.AESKey
 	}else{
 		AESKey= util.GetAESKeyByDay()
 	}
-	data,_=util.EncryptAES(data,AESKey)
-	datelen:=len(data)
-	buf,_=util.EncryptAES([]byte{0xFB,byte(datelen%0x100),byte(datelen/0x100),0xFC},AESKey)
-	bufffer=bytes.NewBuffer(buf)
+	//data,_=util.EncryptAES(data,AESKey)
+	dataLen:=len(data)
+	header:=[]byte{0xFB,byte(dataLen%0x100),byte(dataLen/0x100),0xFC}
+	bufffer=bytes.NewBuffer(header)
 	bufffer.Write(data)
-	client.Conn.Write(bufffer.Bytes())
+	buffferBytes,_:=util.EncryptAES(bufffer.Bytes(),AESKey)
+	buffferBytesLen:=len(buffferBytes)
+	rand.Seed(time.Now().Unix())
+	len1:=rand.Intn(buffferBytesLen)
+	if len1<4{
+		len1=4
+	}
+	client.Conn.Write(buffferBytes[:len1])
+	client.Conn.Write(buffferBytes[len1:])
 }
 func SendPacketAndDisconnect(client *User,data []byte){
 	SendPacket(client,data)
@@ -115,8 +124,11 @@ func ReadFromClient(client *User) ([]byte,error){
 			break
 		}
 	}
-	decodeBuf,_:=util.DecryptAES(buf,AESKey)
-	return decodeBuf,nil
+	xbuf:=make([]byte,len(buf)+4)
+	copy(xbuf,header)
+	copy(xbuf[4:],buf)
+	xbuf,_=util.DecryptAES(xbuf,AESKey)
+	return xbuf[4:],nil
 }
 func ServeClient(client *User){
 	flag:=0
