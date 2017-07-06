@@ -3,26 +3,32 @@ package net
 import (
 	"net"
 	"DazeProxy/config"
+	"DazeProxy/database"
 	"os"
 	"encoding/binary"
 	"bytes"
 	"errors"
 	"DazeProxy/util"
-	"DazeProxy/log"
+	"log"
 	"reflect"
 	"unsafe"
 	_NET "net"
 	"math/rand"
 	"time"
+	"encoding/json"
 )
 var Server *net.Listener
+type JsonAuth struct{
+	Username string
+	Password string
+}
+
 //F1 01 00 04 31 32 33 34 F2
 //F1为头部
 //01为命令
 //00 04为content长度
 //31 32 33 34 为content内容
 //F2为尾部
-
 func MakePacket(command byte,content []byte) []byte{
 	if content==nil{
 		content=[]byte{0x0}
@@ -81,15 +87,18 @@ func SendPacketAndDisconnect(client *User,data []byte){
 }
 func SaveAESKey(buf []byte,client *User) error{
 	Debuf, DeErr := util.DecryptRSA(buf)
-	log.DebugPrintSuccess("key解码前长度：",len(buf),"key解码后长度：",len(Debuf))
+	if config.Config.IsDebug{
+		log.Println("key解码前长度：", len(buf), "key解码后长度：", len(Debuf))
+	}
 	if DeErr != nil ||Debuf[len(Debuf)-1]!=0xFF|| len(Debuf) != 33 {
 		return errors.New("AESKey Error")
 	}
-	client.IsAuth=true
 	client.AESKey= Debuf[:len(Debuf)-1]
 	client.IsKeyExchange=true
 	SendPacket(client, MakePacket(4, nil))
-	log.DebugPrintSuccess(client.Conn.RemoteAddr()," key交换成功")
+	if config.Config.IsDebug {
+		log.Println(client.Conn.RemoteAddr(), " key交换成功")
+	}
 	return nil
 }
 func ReadFromClient(client *User) ([]byte,error){
@@ -137,10 +146,14 @@ func ServeClient(client *User){
 			client.Conn.Close()
 			close(client.AuthHeartBeat)
 			close(client.UDPAliveTime)
-			log.DebugPrintAlert(client.Conn.RemoteAddr(),"连接线程关闭")
+			if config.Config.IsDebug {
+				log.Println(client.Conn.RemoteAddr(), "连接线程关闭")
+			}
 			return
 		}
-		log.DebugPrintAlert(client.Conn.RemoteAddr(),"连接线程已进入代理模式")
+		if config.Config.IsDebug {
+			log.Println(client.Conn.RemoteAddr(), "连接线程已进入代理模式")
+		}
 	}()
 	for{
 		buf,err:=ReadFromClient(client)
@@ -148,12 +161,13 @@ func ServeClient(client *User){
 			return
 		}
 		if !client.IsKeyExchange{
-			log.DebugPrintSuccess(client.Conn.RemoteAddr()," key交换开始")
+			if config.Config.IsDebug {
+				log.Println(client.Conn.RemoteAddr(), " key交换开始")
+			}
 			SaveAESErr:=SaveAESKey(buf,client)
 			if SaveAESErr!=nil{
 				return
 			}
-			client.AuthHeartBeat<-1
 			continue
 		}
 		command,data,derr:=DePacket(buf)
@@ -173,9 +187,8 @@ func ServeClient(client *User){
 命令3代表用户名密码登录，data里面是json格式的数据，例如{"username":"123","password":"456"}
 命令4代表客户端想要用证书登录，data里面是公钥
 命令5代表客户端发送过来的随机字符串A，要求服务端对比是否一致
-命令A1代表代理IPV4的TCP连接，data里面是sessionID和IP和端口
-命令A2代表代理IPV4的UDP连接，data里面是sessionID和IP和端口
-命令A
+命令A1代表代理IPV4的TCP连接，data里面是IP和端口
+命令A2代表代理IPV4的UDP连接，data里面是IP和端口
 
 服务端发送到客户端
 命令1代表data里面是key
@@ -183,13 +196,17 @@ func ServeClient(client *User){
 命令3代表key长度错误
 命令4代表接受AESkey
 命令5代表利用用户RSA指纹寻找到公钥，并加密了一串随机字符串A
-命令6代表用户的公钥在数据库中找不到
 命令7代表客户端发送过来的随机字符串A跟服务端一致（证书登录成功）
-命令8代表客户端发送过来的随机字符串A跟服务端不一致（证书登录失败）
-命令9代表登录次数过多
+命令9代表客户端登录成功
+
 命令A代表用户发送过来的公钥没法加密
 命令E1代表IP地址格式错误
 命令E2代表连接失败
+命令E3代表登录失败
+命令E4代表未登录
+命令E5代表客户端发送过来的随机字符串A跟服务端不一致（证书登录失败）
+命令E6代表用户的公钥在数据库中找不到
+
 命令C1代表成功连接
 
 命令FF代表指令没法识别
@@ -228,30 +245,55 @@ func DecodeConnectPacketAndCheck(data []byte,client *User)(string,error){
 	return ipstring+":"+port,nil
 }
 func ServeCommand(client *User,command byte,data []byte) int {
-		if command==0xA1 || command==0xA2{
-			network:="tcp"
-			if command==0xA2{
-				network="udp"
-			}
-			address,DecodeConnectPacketErr:=DecodeConnectPacketAndCheck(data,client)
-			if DecodeConnectPacketErr!=nil{
-				SendPacketAndDisconnect(client, MakePacket(0xE1, nil))
+		switch command{
+		case 0x03:{
+			authinfo:=JsonAuth{}
+			err:=json.Unmarshal(data,&authinfo)
+			if err!=nil||!database.CheckUserPass(authinfo.Username,authinfo.Password){
+				SendPacketAndDisconnect(client, MakePacket(0xE3, nil))
 				return 0
 			}
-			ProxyConn,dailerr:=net.Dial(network,address)
-			log.DebugPrintNormal("客户端",client.Conn.RemoteAddr(),"想要代理",network,address)
-			if dailerr!=nil{
-				log.DebugPrintNormal("客户端",client.Conn.RemoteAddr(),"想要代理",network,address,"但连接失败了")
-				SendPacketAndDisconnect(client, MakePacket(0xE2, nil))
-				return 0
+			client.IsAuth=true
+			client.AuthHeartBeat<-1
+			SendPacket(client, MakePacket(0x09, nil))
+		}
+		case 0xA1:fallthrough
+		case 0xA2:
+			{
+				if !client.IsAuth{
+					SendPacketAndDisconnect(client, MakePacket(0xE4, nil))
+					return 0
+				}
+				network:="tcp"
+				if command==0xA2{
+					network="udp"
+				}
+				address,DecodeConnectPacketErr:=DecodeConnectPacketAndCheck(data,client)
+				if DecodeConnectPacketErr!=nil{
+					SendPacketAndDisconnect(client, MakePacket(0xE1, nil))
+					return 0
+				}
+				ProxyConn,dailerr:=net.Dial(network,address)
+				if config.Config.IsDebug {
+					log.Println("客户端", client.Conn.RemoteAddr(), "想要代理", network, address)
+				}
+				if dailerr!=nil{
+					if config.Config.IsDebug {
+						log.Println("客户端", client.Conn.RemoteAddr(), "想要代理", network, address, "但连接失败了")
+					}
+					SendPacketAndDisconnect(client, MakePacket(0xE2, nil))
+					return 0
+				}
+				if config.Config.IsDebug {
+					log.Println("客户端", client.Conn.RemoteAddr(), "想要代理", network, address, "，连接成功")
+				}
+				client.Network=network
+				client.IsConnected=true
+				SendPacket(client, MakePacket(0xC1, []byte(ProxyConn.RemoteAddr().String())))
+				go BridgeClientToRemote(client,ProxyConn)
+				go BridgeRemoteToClient(client,ProxyConn)
+				return 1
 			}
-			log.DebugPrintNormal("客户端",client.Conn.RemoteAddr(),"想要代理",network,address,"，连接成功")
-			client.Network=network
-			client.IsConnected=true
-			SendPacket(client, MakePacket(0xC1, []byte(ProxyConn.RemoteAddr().String())))
-			go BridgeClientToRemote(client,ProxyConn)
-			go BridgeRemoteToClient(client,ProxyConn)
-			return 1
 		}
 	return 0
 }
@@ -269,7 +311,9 @@ func BridgeClientToRemote(client *User,Remote net.Conn){
 		client.Conn.Close()
 		Remote.Close()
 		CloseChan(client)
-		log.DebugPrintAlert(client.Conn.RemoteAddr(),"BCTR退出")
+		if config.Config.IsDebug {
+			log.Println(client.Conn.RemoteAddr(), "BCTR退出")
+		}
 	}()
 	for{
 		buf,err:=ReadFromClient(client)
@@ -284,7 +328,9 @@ func BridgeRemoteToClient(client *User,Remote net.Conn){
 		Remote.Close()
 		client.Conn.Close()
 		CloseChan(client)
-		log.DebugPrintAlert(client.Conn.RemoteAddr(),"BRTC退出")
+		if config.Config.IsDebug {
+			log.Println(client.Conn.RemoteAddr(), "BRTC退出")
+		}
 	}()
 	buf:=make([]byte,1024)
 	for{
@@ -295,48 +341,31 @@ func BridgeRemoteToClient(client *User,Remote net.Conn){
 		SendPacket(client,buf[:n])
 	}
 }
-func StartServerIP4(ipv6ResolvePrefer bool){
-	l,err:=net.Listen("tcp4",":"+config.Config.ServerPort)
+
+func StartServer(targetNet string,ipv6ResolvePrefer bool){
+	targetNet1:="tcp4"
+	if targetNet=="ipv6"{
+		targetNet1="tcp6"
+	}
+	l,err:=net.Listen(targetNet1,":"+config.Config.ServerPort)
 	if err!=nil{
-		log.PrintPanic("IPv4服务端启动失败（原因：",err.Error(),")")
+		log.Fatal(targetNet+"服务端启动失败（原因：",err.Error(),")")
 		os.Exit(-1)
 	}
 	//Server=&l
 	//go StartHeartbeat()
-	log.PrintSuccess("IPv4服务端启动成功")
+	log.Println(targetNet+"服务端启动成功")
 	for {
 		conn, AcceptErr := l.Accept()
 		//delete(Users,client.RemoteAddr()) //BUG!!!!!
 		if AcceptErr!=nil{
-			log.DebugPrintPanicWithoutExit("接受失败！",AcceptErr.Error())
+			log.Println("客户端接受失败！",AcceptErr.Error())
 			continue
 		}
-		log.DebugPrintNormal("客户端",conn.RemoteAddr(),"连接")
-		//AddUser(client)
-		client:=NewUser(conn)
-		client.IPv6ResolvePrefer=ipv6ResolvePrefer
-		go NewHeartBeatCountDown(client.AuthHeartBeat,5,client,"Auth or Connect")
-		SendPacket(client,util.GetPublicKey())
-		go ServeClient(client)
-	}
-}
-func StartServerIP6(ipv6ResolvePrefer bool){
-	l,err:=net.Listen("tcp6",":"+config.Config.ServerPort)
-	if err!=nil{
-		log.PrintPanic("IPv6服务端启动失败（原因：",err.Error(),")")
-		os.Exit(-1)
-	}
-	//Server=&l
-	//go StartHeartbeat()
-	log.PrintSuccess("IPv6服务端启动成功")
-	for {
-		conn, AcceptErr := l.Accept()
-		//delete(Users,client.RemoteAddr()) //BUG!!!!!
-		if AcceptErr!=nil{
-			log.DebugPrintPanicWithoutExit("接受失败！",AcceptErr.Error())
-			continue
+		if config.Config.IsDebug {
+			log.Println("客户端",conn.RemoteAddr(),"连接")
 		}
-		log.DebugPrintNormal("客户端",conn.RemoteAddr(),"连接")
+
 		//AddUser(client)
 		client:=NewUser(conn)
 		client.IPv6ResolvePrefer=ipv6ResolvePrefer

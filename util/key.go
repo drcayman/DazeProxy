@@ -9,11 +9,13 @@ import (
 	"crypto/cipher"
 	"io/ioutil"
 	"crypto/aes"
-	"DazeProxy/log"
 	"errors"
 	"strconv"
 	"time"
 	"strings"
+	"log"
+	"crypto/md5"
+	"fmt"
 )
 
 func GenRsaKey(bits int) error {
@@ -56,17 +58,17 @@ func GenRsaKey(bits int) error {
 	return nil
 }
 func CheckKeyAndGen()  {
-	log.PrintAlert("开始检查密钥文件")
+	log.Println("开始检查密钥文件")
 	_,privateKeyErr:=os.Stat("private.pem")
 	_,publicKeyErr:=os.Stat("public.pem")
 	if privateKeyErr!=nil || publicKeyErr!=nil{
-		log.PrintPanicWithoutExit("密钥文件不存在，开始生成密钥文件")
+		log.Println("密钥文件不存在，开始生成密钥文件")
 		os.Remove("private.pem")
 		os.Remove("public.pem")
 		GenRsaKey(1024)
-		log.PrintSuccess("密钥文件生成成功")
+		log.Println("密钥文件生成成功")
 	}
-	log.PrintSuccess("密钥文件检查完毕")
+	log.Println("密钥文件检查完毕")
 }
 func CheckLicense(){
 
@@ -79,13 +81,13 @@ func GenRandomData(bytes int) []byte{
 func DecryptRSA(data []byte) ([]byte,error){
 	KeyFileBuf,PrivateKeyErr:=ioutil.ReadFile("private.pem")
 	if PrivateKeyErr!=nil{
-		log.PrintAlert("私钥文件丢失！！系统强制退出(D)")
+		log.Fatal("私钥文件丢失！！系统强制退出(D)")
 
 	}
 	block,_:=pem.Decode(KeyFileBuf)
 	PrivateKey,PrivateKeyParseErr:=x509.ParsePKCS1PrivateKey(block.Bytes)
 	if PrivateKeyParseErr!=nil{
-		log.PrintPanic("私钥文件解析错误！！系统强制退出(E)")
+		log.Fatal("私钥文件解析错误！！系统强制退出(E)")
 	}
 	return rsa.DecryptPKCS1v15(rand.Reader,PrivateKey,data)
 }
@@ -100,12 +102,12 @@ func DecryptRSAWithKey(data []byte,key []byte) ([]byte,error){
 func EncryptRSA(data []byte) ([]byte,error){
 	KeyFileBuf,PrivateKeyErr:=ioutil.ReadFile("private.pem")
 	if PrivateKeyErr!=nil{
-		log.PrintPanic("私钥文件丢失！！系统强制退出(E1)")
+		log.Fatal("私钥文件丢失！！系统强制退出(E1)")
 	}
 	block,_:=pem.Decode(KeyFileBuf)
 	PrivateKey,PrivateKeyParseErr:=x509.ParsePKCS1PrivateKey(block.Bytes)
 	if PrivateKeyParseErr!=nil{
-		log.PrintPanic("私钥文件解析错误！！系统强制退出",PrivateKeyParseErr.Error())
+		log.Fatal("私钥文件解析错误！！系统强制退出",PrivateKeyParseErr.Error())
 	}
 	return rsa.EncryptPKCS1v15(rand.Reader,&PrivateKey.PublicKey,data)
 }
@@ -134,7 +136,7 @@ func EncryptAES(data []byte,key []byte) ([]byte,error){
 func GetPublicKey() []byte{
 	PublicKeyBuf, PublicKeyErr := ioutil.ReadFile("public.pem")
 	if PublicKeyErr != nil {
-		log.PrintPanic("公钥文件丢失！！系统强制退出")
+		log.Fatal("公钥文件丢失！！系统强制退出")
 	}
 	block,_:=pem.Decode(PublicKeyBuf)
 	return block.Bytes
@@ -146,4 +148,12 @@ func GetAESKeyByDay() []byte{
 	}else{
 		return []byte(strings.Repeat(daystr,8))
 	}
+}
+func GetDoubleMd5(str string) string {
+	test := md5.New()
+	test.Write([]byte(str))
+	doublemd5 := fmt.Sprintf("%x", test.Sum(nil))
+	test.Reset()
+	test.Write([]byte(doublemd5))
+	return fmt.Sprintf("%x", test.Sum(nil))
 }
