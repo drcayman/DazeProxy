@@ -8,8 +8,10 @@ import (
 )
 
 type ConfigStruct struct{
-	ServerPort string
 	IsDebug bool
+	IPv4Port string
+	IPv6Port string
+	IPv6ResolvePrefer bool
 }
 var Config ConfigStruct
 func init(){
@@ -23,5 +25,7 @@ func init(){
 		os.Exit(-1)
 	}
 	fmt.Println("配置文件读取成功：")
-	fmt.Println("    端口号：",Config.ServerPort)
+	fmt.Println("    IPv4端口号：",Config.IPv4Port)
+	fmt.Println("    IPv6端口号：",Config.IPv6Port)
+	fmt.Println("    优先解析域名的IPv6地址：",Config.IPv6ResolvePrefer)
 }

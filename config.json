@@ -1,4 +1,6 @@
 {
-  "ServerPort":"5294",
-  "IsDebug":false
+  "IsDebug":false,
+  "IPv4Port":"5294",
+  "IPv6Port":"5294",
+  "IPv6ResolvePrefer":true
 }

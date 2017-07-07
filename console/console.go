@@ -19,7 +19,7 @@ func ShowMenu(){
 	fmt.Println("****************************")
 }
 func Start(){
-	time.Sleep(time.Second*1)
+	time.Sleep(time.Microsecond*300)
 	ShowMenu()
 	r:=bufio.NewReader(os.Stdin)
 	command:=""
@@ -62,6 +62,8 @@ func Start(){
 			}else{
 				fmt.Println("删除用户失败，或许是ID错误了？")
 			}
+		default:
+			fmt.Println("命令格式错误，请输入help来查看帮助")
 		}
 	}
 }

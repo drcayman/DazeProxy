@@ -4,7 +4,6 @@ import (
 	"net"
 	"DazeProxy/config"
 	"DazeProxy/database"
-	"os"
 	"encoding/binary"
 	"bytes"
 	"errors"
@@ -342,15 +341,18 @@ func BridgeRemoteToClient(client *User,Remote net.Conn){
 	}
 }
 
-func StartServer(targetNet string,ipv6ResolvePrefer bool){
+func StartServer(targetNet string,port string,ipv6ResolvePrefer bool){
+	if port==""{
+		return
+	}
 	targetNet1:="tcp4"
 	if targetNet=="ipv6"{
 		targetNet1="tcp6"
 	}
-	l,err:=net.Listen(targetNet1,":"+config.Config.ServerPort)
+	l,err:=net.Listen(targetNet1,":"+port)
 	if err!=nil{
 		log.Fatal(targetNet+"服务端启动失败（原因：",err.Error(),")")
-		os.Exit(-1)
+		return
 	}
 	//Server=&l
 	//go StartHeartbeat()
