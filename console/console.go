@@ -25,7 +25,11 @@ func Start(){
 	command:=""
 	for{
 		fmt.Print(">>>>>>")
-		buf,_,_:=r.ReadLine()
+		buf,_,err:=r.ReadLine()
+		if err!=nil{
+			fmt.Println("转入后台处理")
+			return
+		}
 		bufstr:=util.B2s(buf)
 		fmt.Sscanf(bufstr,"%s",&command)
 		switch strings.ToLower(command) {
