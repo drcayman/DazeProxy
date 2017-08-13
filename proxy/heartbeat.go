@@ -4,9 +4,10 @@ import (
 	"time"
 	"log"
 	"DazeProxy/config"
+	"DazeProxy/common"
 )
 
-func NewHeartBeatCountDown(c chan int,second int,client *User,msg string){
+func NewHeartBeatCountDown(c chan int,second int,client *common.User,msg string){
 	select {
 	case <- time.After(time.Duration(second)* time.Second):
 		if config.Config.IsDebug{

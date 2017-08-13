@@ -7,21 +7,19 @@ import (
 	"encoding/binary"
 	"bytes"
 	"errors"
-	"DazeProxy/util"
 	"log"
-	"reflect"
-	"unsafe"
-	_NET "net"
-	"math/rand"
-	"time"
 	"encoding/json"
 	"DazeProxy/encryption"
 	"DazeProxy/disguise"
+	. "DazeProxy/common"
 )
 var Server *net.Listener
 type JsonAuth struct{
 	Username string
 	Password string
+	Net string
+	Host string
+	Port string
 }
 
 //F1 01 00 04 31 32 33 34 F2
@@ -42,7 +40,7 @@ func MakePacket(command byte,content []byte) []byte{
 	buf:=make([]byte,5+len(content))
 	buf[0]=0xF1
 	buf[1]=command
-	binary.Write(ContentLenBuffer,binary.BigEndian,ContentLen)
+	binary.Write(ContentLenBuffer,binary.LittleEndian,ContentLen)
 	copy(buf[2:],ContentLenBuffer.Bytes())
 	copy(buf[4:],content)
 	buf[len(buf)-1]=0xF2
@@ -52,7 +50,7 @@ func DePacket(buf []byte) (byte,[]byte,error){
 	if len(buf)<6 || buf[0]!=0xF1 || buf[len(buf)-1]!=0xF2{
 		return 0,nil,errors.New("error1")
 	}
-	ContentLen:=int(buf[2])*256+int(buf[3])
+	ContentLen:=int(buf[2])+int(buf[3])*256
 	if len(buf)-5!=int(ContentLen){
 		return 0,nil,errors.New("error2")
 	}
@@ -60,116 +58,75 @@ func DePacket(buf []byte) (byte,[]byte,error){
 }
 func SendPacket(client *User,data []byte){
 	var bufffer *bytes.Buffer
-	var AESKey []byte
-	if client.IsKeyExchange {
-		AESKey = client.AESKey
-	}else{
-		AESKey= util.GetAESKeyByDay()
+	packets,encErr:=client.ProxyUnit.Encryption.Encrypt(&client.EncReserved,data)
+	if encErr!=nil{
+		return
 	}
-	//data,_=util.EncryptAES(data,AESKey)
-	dataLen:=len(data)
-	header:=[]byte{0xFB,byte(dataLen%0x100),byte(dataLen/0x100),0xFC}
-	bufffer=bytes.NewBuffer(header)
-	bufffer.Write(data)
-	buffferBytes,_:=util.EncryptAES(bufffer.Bytes(),AESKey)
-	buffferBytesLen:=len(buffferBytes)
-	rand.Seed(time.Now().Unix())
-	len1:=rand.Intn(buffferBytesLen)
-	if len1<4{
-		len1=4
+	for _,pkt:=range packets{
+		dataLen:=len(pkt)
+		header:=[]byte{0xFB,byte(dataLen%0x100),byte(dataLen/0x100),0xFC}
+		bufffer=bytes.NewBuffer(header)
+		bufffer.Write(data)
+		client.Conn.Write(bufffer.Bytes())
 	}
-	client.Conn.Write(buffferBytes[:len1])
-	client.Conn.Write(buffferBytes[len1:])
+
 }
 func SendPacketAndDisconnect(client *User,data []byte){
 	SendPacket(client,data)
 	client.Conn.Close()
 	//DisconnectAndDeleteUser(client)
 }
-func SaveAESKey(buf []byte,client *User) error{
-	Debuf, DeErr := util.DecryptRSA(buf)
-	if config.Config.IsDebug{
-		log.Println("key解码前长度：", len(buf), "key解码后长度：", len(Debuf))
-	}
-	if DeErr != nil ||Debuf[len(Debuf)-1]!=0xFF|| len(Debuf) != 33 {
-		return errors.New("AESKey Error")
-	}
-	client.AESKey= Debuf[:len(Debuf)-1]
-	client.IsKeyExchange=true
-	SendPacket(client, MakePacket(4, nil))
-	if config.Config.IsDebug {
-		log.Println(client.Conn.RemoteAddr(), " key交换成功")
-	}
-	return nil
-}
+
 func ReadFromClient(client *User) ([]byte,error){
-	headerbuf:=make([]byte,4)
-	n,err:=client.Conn.Read(headerbuf)
+	HeaderBuf:=make([]byte,4)
+	n,err:=client.Conn.Read(HeaderBuf)
 	if n<4 ||err!=nil{
 		return nil,errors.New("read header error ")
 	}
-	AESKey:=client.AESKey
-	if AESKey==nil{
-		AESKey=util.GetAESKeyByDay()
+	headerDecode,err:=client.ProxyUnit.Encryption.Decrypt(&client.EncReserved,HeaderBuf)
+	if err!=nil || headerDecode[0]!=0xFB || headerDecode[3]!=0xFC{
+		return nil,errors.New("decode header error")
 	}
-	header:=headerbuf[:4]
-	headerDecode,_:=util.DecryptAES(header,AESKey)
-	if headerDecode[0]!=0xFB || headerDecode[3]!=0xFC{
-		return nil,errors.New("deheader error")
-	}
-	buflen:=int(headerDecode[1])+int(headerDecode[2])*256
-	buf:=make([]byte,buflen)
-	pos:=0
+	PacketLen:=int(headerDecode[1])+int(headerDecode[2])*256
+	buf:=make([]byte,4+PacketLen)
+	pos:=4
 	for{
 		n,err:=client.Conn.Read(buf[pos:])
 		if err!=nil{
 			return nil,errors.New("read body error")
 		}
-		buflen-=n
+		PacketLen-=n
 		pos+=n
-		if buflen<0{
+		if PacketLen<0{
 			return nil,errors.New("body len error")
 		}
-		if buflen==0{
+		if PacketLen==0{
 			break
 		}
 	}
-	xbuf:=make([]byte,len(buf)+4)
-	copy(xbuf,header)
-	copy(xbuf[4:],buf)
-	xbuf,_=util.DecryptAES(xbuf,AESKey)
-	return xbuf[4:],nil
+	copy(buf,HeaderBuf)
+	DecodeBuf,err:=client.ProxyUnit.Encryption.Decrypt(&client.EncReserved,buf)
+	if err!=nil{
+		return nil,errors.New("decode body error")
+	}
+	return DecodeBuf[4:],nil
 }
 func ServeClient(client *User){
 	flag:=0
 	defer func(){
 		if flag==0{
-			client.Conn.Close()
-			close(client.AuthHeartBeat)
-			close(client.UDPAliveTime)
+			DisconnectUser(client)
 			if config.Config.IsDebug {
 				log.Println(client.Conn.RemoteAddr(), "连接线程关闭")
 			}
-			return
-		}
-		if config.Config.IsDebug {
-			log.Println(client.Conn.RemoteAddr(), "连接线程已进入代理模式")
+		}else if config.Config.IsDebug {
+				log.Println(client.Conn.RemoteAddr(), "连接线程已进入代理模式")
 		}
 	}()
 	for{
 		buf,err:=ReadFromClient(client)
 		if err!=nil{
 			return
-		}
-		if !client.IsKeyExchange{
-			if config.Config.IsDebug {
-				log.Println(client.Conn.RemoteAddr(), " key交换开始")
-			}
-			SaveAESErr:=SaveAESKey(buf,client)
-			if SaveAESErr!=nil{
-				return
-			}
-			continue
 		}
 		command,data,derr:=DePacket(buf)
 		if derr!=nil{
@@ -183,52 +140,32 @@ func ServeClient(client *User){
 }
 /*
 客户端发送到服务端
-命令1代表需要公钥
-命令2代表设定key
-命令3代表用户名密码登录，data里面是json格式的数据，例如{"username":"123","password":"456"}
-命令4代表客户端想要用证书登录，data里面是公钥
-命令5代表客户端发送过来的随机字符串A，要求服务端对比是否一致
-命令A1代表代理IPV4的TCP连接，data里面是IP和端口
-命令A2代表代理IPV4的UDP连接，data里面是IP和端口
+命令1代表读取公告
+命令2代表登录并尝试代理，data里面为JSON格式，例如
+{
+"username":"abc",
+"password":"456",
+"net":"tcp",
+"host":"www.baidu.com",
+"port":"80"
+}
 
 服务端发送到客户端
-命令1代表data里面是key
-命令2代表断开性错误（没交换key就执行其他操作）
-命令3代表key长度错误
-命令4代表接受AESkey
-命令5代表利用用户RSA指纹寻找到公钥，并加密了一串随机字符串A
-命令7代表客户端发送过来的随机字符串A跟服务端一致（证书登录成功）
-命令9代表客户端登录成功
 
-命令A代表用户发送过来的公钥没法加密
 命令E1代表IP地址格式错误
 命令E2代表连接失败
 命令E3代表登录失败
-命令E4代表未登录
-命令E5代表客户端发送过来的随机字符串A跟服务端不一致（证书登录失败）
-命令E6代表用户的公钥在数据库中找不到
+命令E4代表协议错误
 
 命令C1代表成功连接
 
 命令FF代表指令没法识别
 */
-func String(b []byte) (s string) {
-	pbytes := (*reflect.SliceHeader)(unsafe.Pointer(&b))
-	pstring := (*reflect.StringHeader)(unsafe.Pointer(&s))
-	pstring.Data = pbytes.Data
-	pstring.Len = pbytes.Len
-	return
-}
-func DecodeConnectPacketAndCheck(data []byte,client *User)(string,error){
-	var ips *_NET.IPAddr
+func DecodeAddressAndCheck(host string,port string,IPv6ResolvePrefer bool)(string,error){
+	var ips *net.IPAddr
 	var ResolveErr error=nil
-	ip:=util.B2s(data)
-	host,port,SplitErr:=_NET.SplitHostPort(ip)
-	if SplitErr!=nil{
-		return "",errors.New("error1")
-	}
-	if client.IPv6ResolvePrefer{
-		ips,ResolveErr=_NET.ResolveIPAddr("ip6",host)
+	if IPv6ResolvePrefer{
+		ips,ResolveErr=net.ResolveIPAddr("ip6",host)
 	}
 	if ips==nil{
 		ips,ResolveErr=net.ResolveIPAddr("ip",host)
@@ -237,7 +174,7 @@ func DecodeConnectPacketAndCheck(data []byte,client *User)(string,error){
 		return "",errors.New("error2")
 	}
 	if ips.IP.IsLoopback(){
-
+		return "",errors.New("error3")
 	}
 	ipstring:=ips.String()
 	if len(ipstring)>15{
@@ -247,53 +184,52 @@ func DecodeConnectPacketAndCheck(data []byte,client *User)(string,error){
 }
 func ServeCommand(client *User,command byte,data []byte) int {
 		switch command{
-		case 0x03:{
+		case 0x01:{
+
+		}
+		case 0x02:{
 			authinfo:=JsonAuth{}
 			err:=json.Unmarshal(data,&authinfo)
-			if err!=nil||!database.CheckUserPass(authinfo.Username,authinfo.Password){
+			if err!=nil || !database.CheckUserPass(authinfo.Username,authinfo.Password){
+				if config.Config.IsDebug {
+					log.Printf("客户端%s想要代理[%s]%s:%s但验证失败了！\n",client.Conn.RemoteAddr(),authinfo.Net,authinfo.Host,authinfo.Port)
+				}
 				SendPacketAndDisconnect(client, MakePacket(0xE3, nil))
 				return 0
 			}
 			client.IsAuth=true
 			client.AuthHeartBeat<-1
-			SendPacket(client, MakePacket(0x09, nil))
-		}
-		case 0xA1:fallthrough
-		case 0xA2:
-			{
-				if !client.IsAuth{
-					SendPacketAndDisconnect(client, MakePacket(0xE4, nil))
-					return 0
-				}
-				network:="tcp"
-				if command==0xA2{
-					network="udp"
-				}
-				address,DecodeConnectPacketErr:=DecodeConnectPacketAndCheck(data,client)
-				if DecodeConnectPacketErr!=nil{
-					SendPacketAndDisconnect(client, MakePacket(0xE1, nil))
-					return 0
-				}
-				ProxyConn,dailerr:=net.Dial(network,address)
+			if authinfo.Net!="tcp" && authinfo.Net!="udp"{
+				SendPacketAndDisconnect(client, MakePacket(0xE4, nil))
+				return 0
+			}
+			address,DecodeConnectPacketErr:=DecodeAddressAndCheck(authinfo.Host,authinfo.Port,client.IPv6ResolvePrefer)
+			if DecodeConnectPacketErr!=nil{
+				SendPacketAndDisconnect(client, MakePacket(0xE1, nil))
+				return 0
+			}
+			ProxyConn,dailerr:=net.Dial(authinfo.Net,address)
+			if dailerr!=nil{
 				if config.Config.IsDebug {
-					log.Println("客户端", client.Conn.RemoteAddr(), "想要代理", network, address)
+					log.Printf("客户端%s想要代理[%s]%s:%s但连接失败了！\n",client.Conn.RemoteAddr(),authinfo.Net,authinfo.Host,authinfo.Port)
 				}
-				if dailerr!=nil{
-					if config.Config.IsDebug {
-						log.Println("客户端", client.Conn.RemoteAddr(), "想要代理", network, address, "但连接失败了")
-					}
-					SendPacketAndDisconnect(client, MakePacket(0xE2, nil))
-					return 0
-				}
-				if config.Config.IsDebug {
-					log.Println("客户端", client.Conn.RemoteAddr(), "想要代理", network, address, "，连接成功")
-				}
-				client.Network=network
-				client.IsConnected=true
-				SendPacket(client, MakePacket(0xC1, []byte(ProxyConn.RemoteAddr().String())))
-				go BridgeClientToRemote(client,ProxyConn)
-				go BridgeRemoteToClient(client,ProxyConn)
-				return 1
+				SendPacketAndDisconnect(client, MakePacket(0xE2, nil))
+				return 0
+			}
+			if config.Config.IsDebug {
+				log.Printf("客户端%s成功代理[%s]%s:%s\n",client.Conn.RemoteAddr(),authinfo.Net,authinfo.Host,authinfo.Port)
+			}
+			client.RemoteConn=ProxyConn
+			client.Network=authinfo.Net
+			client.IsConnected=true
+			SendPacket(client, MakePacket(0xC1, []byte(ProxyConn.RemoteAddr().String())))
+			go BridgeClientToRemote(client,ProxyConn)
+			go BridgeRemoteToClient(client,ProxyConn)
+			return 1
+			}
+		default:{
+			SendPacketAndDisconnect(client, MakePacket(0xFF, nil))
+			return 0
 			}
 		}
 	return 0
@@ -326,9 +262,7 @@ func BridgeClientToRemote(client *User,Remote net.Conn){
 }
 func BridgeRemoteToClient(client *User,Remote net.Conn){
 	defer func(){
-		Remote.Close()
-		client.Conn.Close()
-		CloseChan(client)
+		DisconnectUserAndRemoteConn(client)
 		if config.Config.IsDebug {
 			log.Println(client.Conn.RemoteAddr(), "BRTC退出")
 		}
@@ -343,49 +277,89 @@ func BridgeRemoteToClient(client *User,Remote net.Conn){
 	}
 }
 
-func StartServer(cfg ProxyUnit){
+func StartServer(unit ProxyUnit){
 	defer func(){
 		if err := recover(); err != nil {
-			log.Printf("代理服务单元（端口：%s）启动失败（原因：%s）\n",cfg.Config.Port,err)
+			log.Printf("代理服务单元（端口：%s）启动失败（原因：%s）\n",unit.Config.Port,err)
 		}
 	}()
-	if cfg.Config.Port==""{
+	if unit.Config.Port==""{
 		panic("端口不能为空")
 	}
-	enc,encflag:=encryption.GetEncryption(cfg.Config.Encryption)
+
+	//加载加密模块和初始化
+	enc,encflag:=encryption.GetEncryption(unit.Config.Encryption)
 	if !encflag{
-		panic("加密方式"+cfg.Config.Encryption+"不存在")
+		panic("加密方式"+unit.Config.Encryption+"不存在")
 	}
-	cfg.Encryption=enc()
-	dsg,dsgflag:=disguise.GetDisguise(cfg.Config.Disguise)
+	unit.Encryption=enc()
+	encInitErr:=unit.Encryption.Init(unit.Config.EncryptionParam)
+	if encInitErr!=nil{
+		panic("加密方式"+unit.Config.Encryption+"初始化错误！原因："+encInitErr.Error())
+	}
+	//加载伪装模块和初始化
+	dsg,dsgflag:=disguise.GetDisguise(unit.Config.Disguise)
 	if !dsgflag{
-		panic("伪装方式"+cfg.Config.Disguise+"不存在")
+		panic("伪装方式"+unit.Config.Disguise+"不存在")
 	}
-	cfg.Disguise=dsg()
-	l,err:=net.Listen("tcp",":"+cfg.Config.Port)
+	unit.Disguise=dsg()
+	dsgInitErr:=unit.Disguise.Init(unit.Config.DisguiseParam)
+	if dsgInitErr!=nil{
+		panic("伪装方式"+unit.Config.Disguise+"初始化错误！原因："+dsgInitErr.Error())
+	}
+
+	l,err:=net.Listen("tcp",":"+unit.Config.Port)
 	if err!=nil{
 		panic(err.Error())
 	}
 	log.Printf("代理服务单元启动成功（端口：%s，加密方式：%s，加密参数：%s，伪装方式：%s，伪装参数：%s，优先解析IPV6：%v）\n",
-		cfg.Config.Port,
-		cfg.Config.Encryption,
-		cfg.Config.EncryptionParam,
-		cfg.Config.Disguise,
-		cfg.Config.DisguiseParam,
-		cfg.Config.IPv6ResolvePrefer)
+		unit.Config.Port,
+		unit.Config.Encryption,
+		unit.Config.EncryptionParam,
+		unit.Config.Disguise,
+		unit.Config.DisguiseParam,
+		unit.Config.IPv6ResolvePrefer)
 	for {
 		conn, AcceptErr := l.Accept()
 		if AcceptErr!=nil{
-			log.Printf("代理服务单元（端口：%s）接受客户端失败！（原因：%s）\n",cfg.Config.Port,AcceptErr.Error())
+			log.Printf("代理服务单元（端口：%s）接受客户端失败！（原因：%s）\n",unit.Config.Port,AcceptErr.Error())
 			continue
 		}
 		if config.Config.IsDebug {
-			log.Printf("代理服务单元（端口：%s）接受客户端（%s）\n",cfg.Config.Port,conn.RemoteAddr())
+			log.Printf("代理服务单元（端口：%s）接受客户端（%s）\n",unit.Config.Port,conn.RemoteAddr())
 		}
 		client:=NewUser(conn)
-		client.IPv6ResolvePrefer=cfg.Config.IPv6ResolvePrefer
-		go NewHeartBeatCountDown(client.AuthHeartBeat,5,client,"Auth or Connect")
-		SendPacket(client,util.GetPublicKey())
-		go ServeClient(client)
+		client.IPv6ResolvePrefer=unit.Config.IPv6ResolvePrefer
+		client.ProxyUnit=&unit
+		go NewClientComing(client)
 	}
+}
+func DisconnectUser(client *User){
+	CloseChan(client)
+	client.Conn.Close()
+}
+func DisconnectUserAndRemoteConn(client *User){
+	CloseChan(client)
+	client.Conn.Close()
+	client.RemoteConn.Close()
+}
+func NewClientComing(client *User){
+	defer func(){
+		if err := recover(); err != nil{
+			if config.Config.IsDebug{
+				log.Printf("客户端(%s)处理失败（原因：%s）\n",client.Conn.RemoteAddr(),err)
+				DisconnectUser(client)
+			}
+		}
+	}()
+	go NewHeartBeatCountDown(client.AuthHeartBeat,5,client,"Auth or Connect")
+	dsgErr:=client.ProxyUnit.Disguise.Action(client.Conn,&client.DsgReserved)
+	if dsgErr!=nil{
+		panic("伪装时出现错误："+dsgErr.Error())
+	}
+	encErr:=client.ProxyUnit.Encryption.InitUser(client.Conn,&client.EncReserved)
+	if encErr!=nil{
+		panic("为用户初始化加密方式时出现错误："+encErr.Error())
+	}
+	go ServeClient(client)
 }

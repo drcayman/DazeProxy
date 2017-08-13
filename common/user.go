@@ -1,4 +1,4 @@
-package proxy
+package common
 
 import (
 	"net"
@@ -21,6 +21,9 @@ type User struct {
 	Locker sync.Mutex
 	ChanCloseFlag bool
 	IPv6ResolvePrefer bool
+	ProxyUnit *ProxyUnit
+	EncReserved interface{}
+	DsgReserved interface{}
 }
 func NewUser(conn net.Conn) *User{
 	return &User{

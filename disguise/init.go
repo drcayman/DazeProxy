@@ -2,10 +2,11 @@ package disguise
 
 import (
 	"strings"
+	"net"
 )
 type DisguiseAction interface {
 	Init(string)(error)
-	Action()(error)
+	Action(net.Conn,*interface{})(error)
 }
 type regfunc func()(DisguiseAction)
 var disguiseMap map[string]regfunc

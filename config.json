@@ -1,5 +1,5 @@
 {
-  "IsDebug":false,
+  "IsDebug":true,
   "ProxyUnit":[
     {
       "Port":"5294",

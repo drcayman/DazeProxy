@@ -2,11 +2,13 @@ package encryption
 
 import (
 	"strings"
+	"net"
 )
 type EncryptionAction interface {
 	Init(string)(error)
-	Encrypt([]byte,int) ([]byte,int,error)
-	Decrypt([]byte,int) ([]byte,int,error)
+	InitUser(net.Conn,*interface{})(error)
+	Encrypt(*interface{},[]byte) ([][]byte,error)
+	Decrypt(*interface{},[]byte) ([]byte,error)
 }
 type regfunc func()(EncryptionAction)
 var encryptionMap map[string]regfunc

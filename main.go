@@ -7,17 +7,16 @@ import (
 	"time"
 	"DazeProxy/config"
 	"DazeProxy/proxy"
+	//"DazeProxy/console"
+	"DazeProxy/common"
 )
 
 
 func main(){
-	//util.CheckLicense()
-	//util.CheckKeyAndGen()
-	//go net.StartServer("ipv4",config.Config.IPv4Port,config.Config.IPv6ResolvePrefer)
-	//go net.StartServer("ipv6",config.Config.IPv6Port,config.Config.IPv6ResolvePrefer)
+
 	//go console.Start()
 	for _,v:=range config.Config.ProxyUnit{
-		unit:= proxy.ProxyUnit{
+		unit:= common.ProxyUnit{
 			Config:v,
 		}
 		go proxy.StartServer(unit)

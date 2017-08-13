@@ -1,4 +1,4 @@
-package proxy
+package common
 
 import (
 	"DazeProxy/config"
