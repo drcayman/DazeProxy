@@ -1,6 +1,21 @@
 {
   "IsDebug":false,
-  "IPv4Port":"5294",
-  "IPv6Port":"5294",
-  "IPv6ResolvePrefer":true
+  "ProxyUnit":[
+    {
+      "Port":"5294",
+      "Disguise":"none",
+      "DisguiseParam":"",
+      "Encryption":"none",
+      "EncryptionParam":"",
+      "IPv6ResolvePrefer":true
+    },
+    {
+      "Port":"5295",
+      "Disguise":"none",
+      "DisguiseParam":"www.baidu.com",
+      "Encryption":"none",
+      "EncryptionParam":"1234567",
+      "IPv6ResolvePrefer":true
+    }
+  ]
 }

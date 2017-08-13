@@ -9,8 +9,14 @@ import (
 
 type ConfigStruct struct{
 	IsDebug bool
-	IPv4Port string
-	IPv6Port string
+	ProxyUnit []ProxyUnitStruct
+}
+type ProxyUnitStruct struct{
+	Port string
+	Disguise string
+	DisguiseParam string
+	Encryption string
+	EncryptionParam string
 	IPv6ResolvePrefer bool
 }
 var Config ConfigStruct
@@ -25,7 +31,6 @@ func init(){
 		os.Exit(-1)
 	}
 	fmt.Println("配置文件读取成功：")
-	fmt.Println("    IPv4端口号：",Config.IPv4Port)
-	fmt.Println("    IPv6端口号：",Config.IPv6Port)
-	fmt.Println("    优先解析域名的IPv6地址：",Config.IPv6ResolvePrefer)
+	fmt.Println("    调试模式：",Config.IsDebug)
+	fmt.Printf("一共%d个代理服务单元\n",len(Config.ProxyUnit))
 }

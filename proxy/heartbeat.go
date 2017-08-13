@@ -1,4 +1,4 @@
-package net
+package proxy
 
 import (
 	"time"

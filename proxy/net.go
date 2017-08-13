@@ -1,4 +1,4 @@
-package net
+package proxy
 
 import (
 	"net"
@@ -15,6 +15,8 @@ import (
 	"math/rand"
 	"time"
 	"encoding/json"
+	"DazeProxy/encryption"
+	"DazeProxy/disguise"
 )
 var Server *net.Listener
 type JsonAuth struct{
@@ -341,36 +343,47 @@ func BridgeRemoteToClient(client *User,Remote net.Conn){
 	}
 }
 
-func StartServer(targetNet string,port string,ipv6ResolvePrefer bool){
-	if port==""{
-		return
+func StartServer(cfg ProxyUnit){
+	defer func(){
+		if err := recover(); err != nil {
+			log.Printf("代理服务单元（端口：%s）启动失败（原因：%s）\n",cfg.Config.Port,err)
+		}
+	}()
+	if cfg.Config.Port==""{
+		panic("端口不能为空")
 	}
-	targetNet1:="tcp4"
-	if targetNet=="ipv6"{
-		targetNet1="tcp6"
+	enc,encflag:=encryption.GetEncryption(cfg.Config.Encryption)
+	if !encflag{
+		panic("加密方式"+cfg.Config.Encryption+"不存在")
 	}
-	l,err:=net.Listen(targetNet1,":"+port)
+	cfg.Encryption=enc()
+	dsg,dsgflag:=disguise.GetDisguise(cfg.Config.Disguise)
+	if !dsgflag{
+		panic("伪装方式"+cfg.Config.Disguise+"不存在")
+	}
+	cfg.Disguise=dsg()
+	l,err:=net.Listen("tcp",":"+cfg.Config.Port)
 	if err!=nil{
-		log.Fatal(targetNet+"服务端启动失败（原因：",err.Error(),")")
-		return
+		panic(err.Error())
 	}
-	//Server=&l
-	//go StartHeartbeat()
-	log.Println(targetNet+"服务端启动成功")
+	log.Printf("代理服务单元启动成功（端口：%s，加密方式：%s，加密参数：%s，伪装方式：%s，伪装参数：%s，优先解析IPV6：%v）\n",
+		cfg.Config.Port,
+		cfg.Config.Encryption,
+		cfg.Config.EncryptionParam,
+		cfg.Config.Disguise,
+		cfg.Config.DisguiseParam,
+		cfg.Config.IPv6ResolvePrefer)
 	for {
 		conn, AcceptErr := l.Accept()
-		//delete(Users,client.RemoteAddr()) //BUG!!!!!
 		if AcceptErr!=nil{
-			log.Println("客户端接受失败！",AcceptErr.Error())
+			log.Printf("代理服务单元（端口：%s）接受客户端失败！（原因：%s）\n",cfg.Config.Port,AcceptErr.Error())
 			continue
 		}
 		if config.Config.IsDebug {
-			log.Println("客户端",conn.RemoteAddr(),"连接")
+			log.Printf("代理服务单元（端口：%s）接受客户端（%s）\n",cfg.Config.Port,conn.RemoteAddr())
 		}
-
-		//AddUser(client)
 		client:=NewUser(conn)
-		client.IPv6ResolvePrefer=ipv6ResolvePrefer
+		client.IPv6ResolvePrefer=cfg.Config.IPv6ResolvePrefer
 		go NewHeartBeatCountDown(client.AuthHeartBeat,5,client,"Auth or Connect")
 		SendPacket(client,util.GetPublicKey())
 		go ServeClient(client)
