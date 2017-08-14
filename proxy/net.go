@@ -65,19 +65,19 @@ func DePacket(buf []byte) (byte,[]byte,error){
 //内容无限长
 func SendPacket(client *User,data []byte){
 	var bufffer *bytes.Buffer
-	packets,encErr:=client.ProxyUnit.Encryption.Encrypt(&client.EncReserved,data)
+	packets,encErr:=client.ProxyUnit.Encryption.Encrypt(&client.EncReserved,&client.ProxyUnit.EncReserved,data)
 	if encErr!=nil{
 		return
 	}
 	for _,pkt:=range packets{
 		dataLen:=len(pkt)
 		header:=[]byte{0xFB,byte(dataLen%0x100),byte(dataLen/0x100),0xFC}
-		headerEncoded,headerEncodedErr:=client.ProxyUnit.Encryption.Encrypt(&client.EncReserved,header)
+		headerEncoded,headerEncodedErr:=client.ProxyUnit.Encryption.Encrypt(&client.EncReserved,&client.ProxyUnit.EncReserved,header)
 		if headerEncodedErr!=nil{
 			return
 		}
 		bufffer=bytes.NewBuffer(headerEncoded[0])
-		bufffer.Write(data)
+		bufffer.Write(pkt)
 		client.Conn.Write(bufffer.Bytes())
 	}
 
@@ -96,13 +96,13 @@ func ReadFromClient(client *User) ([]byte,error){
 	if n<4 ||err!=nil{
 		return nil,errors.New("read header error ")
 	}
-	headerDecode,err:=client.ProxyUnit.Encryption.Decrypt(&client.EncReserved,HeaderBuf)
+	headerDecode,err:=client.ProxyUnit.Encryption.Decrypt(&client.EncReserved,&client.ProxyUnit.EncReserved,HeaderBuf)
 	if err!=nil || headerDecode[0]!=0xFB || headerDecode[3]!=0xFC{
 		return nil,errors.New("decode header error")
 	}
 	PacketLen:=int(headerDecode[1])+int(headerDecode[2])*256
-	buf:=make([]byte,4+PacketLen)
-	pos:=4
+	buf:=make([]byte,PacketLen)
+	pos:=0
 	for{
 		n,err:=client.Conn.Read(buf[pos:])
 		if err!=nil{
@@ -117,12 +117,12 @@ func ReadFromClient(client *User) ([]byte,error){
 			break
 		}
 	}
-	copy(buf,HeaderBuf)
-	DecodeBuf,err:=client.ProxyUnit.Encryption.Decrypt(&client.EncReserved,buf)
+	//copy(buf,HeaderBuf)
+	DecodeBuf,err:=client.ProxyUnit.Encryption.Decrypt(&client.EncReserved,&client.ProxyUnit.EncReserved,buf)
 	if err!=nil{
 		return nil,errors.New("decode body error")
 	}
-	return DecodeBuf[4:],nil
+	return DecodeBuf,nil
 }
 
 //接待客户端
@@ -316,7 +316,7 @@ func StartServer(unit ProxyUnit){
 		panic("加密方式"+unit.Config.Encryption+"不存在")
 	}
 	unit.Encryption=enc()
-	encInitErr:=unit.Encryption.Init(unit.Config.EncryptionParam)
+	encInitErr:=unit.Encryption.Init(unit.Config.EncryptionParam,&unit.EncReserved)
 	if encInitErr!=nil{
 		panic("加密方式"+unit.Config.Encryption+"加载错误！原因："+encInitErr.Error())
 	}
@@ -385,7 +385,7 @@ func NewClientComing(client *User){
 	if dsgErr!=nil{
 		panic("伪装时出现错误："+dsgErr.Error())
 	}
-	encErr:=client.ProxyUnit.Encryption.InitUser(client.Conn,&client.EncReserved)
+	encErr:=client.ProxyUnit.Encryption.InitUser(client.Conn,&client.EncReserved,&client.ProxyUnit.EncReserved)
 	if encErr!=nil{
 		panic("为用户初始化加密方式时出现错误："+encErr.Error())
 	}

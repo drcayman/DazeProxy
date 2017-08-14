@@ -5,10 +5,10 @@ import (
 	"net"
 )
 type EncryptionAction interface {
-	Init(string)(error)
-	InitUser(net.Conn,*interface{})(error)
-	Encrypt(*interface{},[]byte) ([][]byte,error)
-	Decrypt(*interface{},[]byte) ([]byte,error)
+	Init(string,*interface{})(error)
+	InitUser(net.Conn,*interface{},*interface{})(error)
+	Encrypt(*interface{},*interface{},[]byte) ([][]byte,error)
+	Decrypt(*interface{},*interface{},[]byte) ([]byte,error)
 }
 type regfunc func()(EncryptionAction)
 var encryptionMap map[string]regfunc
@@ -22,8 +22,11 @@ func GetEncryption(name string) (regfunc,bool){
 func init(){
 	encryptionMap=make(map[string]regfunc)
 
-	//这里添加自己开发的伪装模块
+	//这里添加自己开发的加密模块
 	encryptionMap["none"]=func()(EncryptionAction){
 		return EncryptionAction(new(none))
+	}
+	encryptionMap["psk-aes-cfb"]=func()(EncryptionAction){
+		return EncryptionAction(new(PskAesCfb))
 	}
 }

@@ -9,5 +9,7 @@ import (
 type ProxyUnit struct{
 	Disguise disguise.DisguiseAction
 	Encryption encryption.EncryptionAction
+	EncReserved interface{}
+	DsgReserved interface{}
 	Config config.ProxyUnitStruct
 }

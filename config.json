@@ -5,8 +5,8 @@
       "Port":"5294",
       "Disguise":"none",
       "DisguiseParam":"",
-      "Encryption":"none",
-      "EncryptionParam":"",
+      "Encryption":"psk-aes-cfb",
+      "EncryptionParam":"123",
       "IPv6ResolvePrefer":true
     },
     {
