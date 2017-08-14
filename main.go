@@ -7,14 +7,14 @@ import (
 	"time"
 	"DazeProxy/config"
 	"DazeProxy/proxy"
-	//"DazeProxy/console"
+	"DazeProxy/console"
 	"DazeProxy/common"
 )
 
 
 func main(){
 
-	//go console.Start()
+	go console.Start()
 	for _,v:=range config.Config.ProxyUnit{
 		unit:= common.ProxyUnit{
 			Config:v,

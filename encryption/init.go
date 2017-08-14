@@ -29,4 +29,10 @@ func init(){
 	encryptionMap["psk-aes-cfb"]=func()(EncryptionAction){
 		return EncryptionAction(new(PskAesCfb))
 	}
+	encryptionMap["psk-aes-256-cfb"]=func()(EncryptionAction){
+		return EncryptionAction(new(PskAes256Cfb))
+	}
+	encryptionMap["psk-rc4-md5"]=func()(EncryptionAction){
+		return EncryptionAction(new(PskRc4Md5))
+	}
 }

@@ -6,29 +6,36 @@ import (
 	"crypto/cipher"
 	"github.com/pkg/errors"
 	"crypto/md5"
+	"encoding/hex"
+	"log"
 )
 
-type PskAesCfb struct {
+type PskAes256Cfb struct {
 
 }
-type PskAesCfbTmp struct {
+type PskAesCfb256Tmp struct {
 	Key []byte
 	Block cipher.Block
 }
-func (this *PskAesCfb) GenKey(key string) ([]byte,error){
+func (this *PskAes256Cfb) GenKey(key string) ([]byte,error){
 	test := md5.New()
 	_,err:=test.Write([]byte(key))
 	if err!=nil{
 		return nil,err
 	}
-	return test.Sum(nil),nil
+	md5src:=test.Sum(nil)
+	md5dst:=make([]byte,32)
+	hex.Encode(md5dst,md5src)
+	return md5dst,nil
+
 }
-func (this *PskAesCfb) Init(arg string,server *interface{})(error){
+func (this *PskAes256Cfb) Init(arg string,server *interface{})(error){
 	key,GenKeyErr:=this.GenKey(arg)
 	if GenKeyErr!=nil{
 		return GenKeyErr
 	}
-	t:=PskAesCfbTmp{}
+	log.Println(len(key))
+	t:=PskAesCfb256Tmp{}
 	var CipherErr error=nil
 	t.Block,CipherErr=aes.NewCipher(key)
 	if CipherErr!=nil{
@@ -38,11 +45,11 @@ func (this *PskAesCfb) Init(arg string,server *interface{})(error){
 	*server=t
 	return nil
 }
-func (this *PskAesCfb)InitUser(conn net.Conn,client *interface{},server *interface{})(error){
+func (this *PskAes256Cfb)InitUser(conn net.Conn,client *interface{},server *interface{})(error){
 	return nil
 }
-func (this *PskAesCfb)Encrypt(client *interface{},server *interface{},data []byte)([][]byte,error){
-	t,flag:=(*server).(PskAesCfbTmp)
+func (this *PskAes256Cfb)Encrypt(client *interface{},server *interface{},data []byte)([][]byte,error){
+	t,flag:=(*server).(PskAesCfb256Tmp)
 	if !flag{
 		return nil,errors.New("unknown error")
 	}
@@ -53,8 +60,8 @@ func (this *PskAesCfb)Encrypt(client *interface{},server *interface{},data []byt
 	list=append(list,dst)
 	return list,nil
 }
-func (this *PskAesCfb)Decrypt(client *interface{},server *interface{},data []byte)([]byte,error){
-	t,flag:=(*server).(PskAesCfbTmp)
+func (this *PskAes256Cfb)Decrypt(client *interface{},server *interface{},data []byte)([]byte,error){
+	t,flag:=(*server).(PskAesCfb256Tmp)
 	if !flag{
 		return nil,errors.New("unknown error")
 	}
