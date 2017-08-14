@@ -22,12 +22,12 @@ type JsonAuth struct{
 	Port string
 }
 
-//F1 01 00 04 31 32 33 34 F2
-//F1为头部
-//01为命令
-//00 04为content长度
-//31 32 33 34 为content内容
-//F2为尾部
+//生成控制数据包
+//[头部：F1][命令][内容长度][内容][尾部：F2]
+//头部尾部均为1字节
+//命令的长度为1字节
+//内容长度的长度为2字节
+//内容的长度不限
 func MakePacket(command byte,content []byte) []byte{
 	if content==nil{
 		content=[]byte{0x0}
@@ -46,6 +46,7 @@ func MakePacket(command byte,content []byte) []byte{
 	buf[len(buf)-1]=0xF2
 	return buf
 }
+//解析控制数据包，解析看上面
 func DePacket(buf []byte) (byte,[]byte,error){
 	if len(buf)<6 || buf[0]!=0xF1 || buf[len(buf)-1]!=0xF2{
 		return 0,nil,errors.New("error1")
@@ -56,6 +57,12 @@ func DePacket(buf []byte) (byte,[]byte,error){
 	}
 	return buf[1],buf[4:4+ContentLen],nil
 }
+
+//打包并发送数据包给客户端
+//[头部][内容]
+//头部和内容分开加密
+//头部为4字节,[FB][内容长度][FC]
+//内容无限长
 func SendPacket(client *User,data []byte){
 	var bufffer *bytes.Buffer
 	packets,encErr:=client.ProxyUnit.Encryption.Encrypt(&client.EncReserved,data)
@@ -65,18 +72,24 @@ func SendPacket(client *User,data []byte){
 	for _,pkt:=range packets{
 		dataLen:=len(pkt)
 		header:=[]byte{0xFB,byte(dataLen%0x100),byte(dataLen/0x100),0xFC}
-		bufffer=bytes.NewBuffer(header)
+		headerEncoded,headerEncodedErr:=client.ProxyUnit.Encryption.Encrypt(&client.EncReserved,header)
+		if headerEncodedErr!=nil{
+			return
+		}
+		bufffer=bytes.NewBuffer(headerEncoded[0])
 		bufffer.Write(data)
 		client.Conn.Write(bufffer.Bytes())
 	}
 
 }
+
+//发送数据包然后断开客户端
 func SendPacketAndDisconnect(client *User,data []byte){
 	SendPacket(client,data)
 	client.Conn.Close()
-	//DisconnectAndDeleteUser(client)
 }
 
+//解析客户端发过来的数据包，解析看上面
 func ReadFromClient(client *User) ([]byte,error){
 	HeaderBuf:=make([]byte,4)
 	n,err:=client.Conn.Read(HeaderBuf)
@@ -111,6 +124,8 @@ func ReadFromClient(client *User) ([]byte,error){
 	}
 	return DecodeBuf[4:],nil
 }
+
+//接待客户端
 func ServeClient(client *User){
 	flag:=0
 	defer func(){
@@ -138,29 +153,8 @@ func ServeClient(client *User){
 		}
 	}
 }
-/*
-客户端发送到服务端
-命令1代表读取公告
-命令2代表登录并尝试代理，data里面为JSON格式，例如
-{
-"username":"abc",
-"password":"456",
-"net":"tcp",
-"host":"www.baidu.com",
-"port":"80"
-}
 
-服务端发送到客户端
-
-命令E1代表IP地址格式错误
-命令E2代表连接失败
-命令E3代表登录失败
-命令E4代表协议错误
-
-命令C1代表成功连接
-
-命令FF代表指令没法识别
-*/
+//解析客户端发送过来的域名
 func DecodeAddressAndCheck(host string,port string,IPv6ResolvePrefer bool)(string,error){
 	var ips *net.IPAddr
 	var ResolveErr error=nil
@@ -182,6 +176,30 @@ func DecodeAddressAndCheck(host string,port string,IPv6ResolvePrefer bool)(strin
 	}
 	return ipstring+":"+port,nil
 }
+
+/*
+客户端发送到服务端：
+命令1代表读取公告
+命令2代表登录并尝试代理，data里面为JSON格式，例如
+{
+"username":"abc",
+"password":"456",
+"net":"tcp",
+"host":"www.baidu.com",
+"port":"80"
+}
+
+服务端发送到客户端：
+命令E1代表IP地址格式错误
+命令E2代表连接失败
+命令E3代表登录失败
+命令E4代表协议错误
+命令C1代表成功连接
+命令FF代表指令没法识别
+
+*/
+
+//处理客户端发送过来的控制数据包
 func ServeCommand(client *User,command byte,data []byte) int {
 		switch command{
 		case 0x01:{
@@ -234,6 +252,8 @@ func ServeCommand(client *User,command byte,data []byte) int {
 		}
 	return 0
 }
+
+//关闭客户端的心跳chan
 func CloseChan(client *User) {
 	client.Locker.Lock()
 	if !client.ChanCloseFlag{
@@ -243,11 +263,11 @@ func CloseChan(client *User) {
 	client.ChanCloseFlag=true
 	client.Locker.Unlock()
 }
+
+//IO桥：客户端到目标服务器
 func BridgeClientToRemote(client *User,Remote net.Conn){
 	defer func(){
-		client.Conn.Close()
-		Remote.Close()
-		CloseChan(client)
+		DisconnectUserAndRemoteConn(client)
 		if config.Config.IsDebug {
 			log.Println(client.Conn.RemoteAddr(), "BCTR退出")
 		}
@@ -260,6 +280,8 @@ func BridgeClientToRemote(client *User,Remote net.Conn){
 		Remote.Write(buf)
 	}
 }
+
+//IO桥：目标服务器到客户端
 func BridgeRemoteToClient(client *User,Remote net.Conn){
 	defer func(){
 		DisconnectUserAndRemoteConn(client)
@@ -277,6 +299,7 @@ func BridgeRemoteToClient(client *User,Remote net.Conn){
 	}
 }
 
+//启动代理服务单元
 func StartServer(unit ProxyUnit){
 	defer func(){
 		if err := recover(); err != nil {
@@ -295,7 +318,7 @@ func StartServer(unit ProxyUnit){
 	unit.Encryption=enc()
 	encInitErr:=unit.Encryption.Init(unit.Config.EncryptionParam)
 	if encInitErr!=nil{
-		panic("加密方式"+unit.Config.Encryption+"初始化错误！原因："+encInitErr.Error())
+		panic("加密方式"+unit.Config.Encryption+"加载错误！原因："+encInitErr.Error())
 	}
 	//加载伪装模块和初始化
 	dsg,dsgflag:=disguise.GetDisguise(unit.Config.Disguise)
@@ -305,7 +328,7 @@ func StartServer(unit ProxyUnit){
 	unit.Disguise=dsg()
 	dsgInitErr:=unit.Disguise.Init(unit.Config.DisguiseParam)
 	if dsgInitErr!=nil{
-		panic("伪装方式"+unit.Config.Disguise+"初始化错误！原因："+dsgInitErr.Error())
+		panic("伪装方式"+unit.Config.Disguise+"加载错误！原因："+dsgInitErr.Error())
 	}
 
 	l,err:=net.Listen("tcp",":"+unit.Config.Port)
@@ -334,15 +357,20 @@ func StartServer(unit ProxyUnit){
 		go NewClientComing(client)
 	}
 }
+
+//断开用户
 func DisconnectUser(client *User){
 	CloseChan(client)
 	client.Conn.Close()
 }
+//断开用户和目标服务器链接
 func DisconnectUserAndRemoteConn(client *User){
 	CloseChan(client)
 	client.Conn.Close()
 	client.RemoteConn.Close()
 }
+
+//新客户端到来时的准备工作
 func NewClientComing(client *User){
 	defer func(){
 		if err := recover(); err != nil{
