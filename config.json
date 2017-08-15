@@ -3,8 +3,8 @@
   "ProxyUnit":[
     {
       "Port":"5294",
-      "Disguise":"tls_handshake",
-      "DisguiseParam":"",
+      "Disguise":"http_get",
+      "DisguiseParam":"www.qq.com",
       "Encryption":"keypair-aes",
       "EncryptionParam":"",
       "IPv6ResolvePrefer":true
