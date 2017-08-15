@@ -11,7 +11,7 @@ import (
 )
 
 type PskAes256Cfb struct {
-
+	reserved string
 }
 type PskAesCfb256Tmp struct {
 	Key []byte

@@ -24,18 +24,18 @@ func init(){
 
 	//这里添加自己开发的加密模块
 	encryptionMap["none"]=func()(EncryptionAction){
-		return EncryptionAction(new(none))
+		return EncryptionAction(&none{})
 	}
 	encryptionMap["psk-aes-cfb"]=func()(EncryptionAction){
-		return EncryptionAction(new(PskAesCfb))
+		return EncryptionAction(&PskAesCfb{})
 	}
 	encryptionMap["psk-aes-256-cfb"]=func()(EncryptionAction){
-		return EncryptionAction(new(PskAes256Cfb))
+		return EncryptionAction(&PskAes256Cfb{})
 	}
 	encryptionMap["psk-rc4-md5"]=func()(EncryptionAction){
-		return EncryptionAction(new(PskRc4Md5))
+		return EncryptionAction(&PskRc4Md5{})
 	}
 	encryptionMap["keypair-aes"]=func()(EncryptionAction){
-		return EncryptionAction(new(KeypairAes))
+		return EncryptionAction(&KeypairAes{})
 	}
 }

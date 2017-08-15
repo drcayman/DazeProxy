@@ -8,7 +8,7 @@ import (
 )
 
 type PskRc4Md5 struct {
-
+	reserved string
 }
 type PskRc4Md5Tmp struct {
 	Cipher *rc4.Cipher

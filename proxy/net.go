@@ -326,7 +326,7 @@ func StartServer(unit ProxyUnit){
 		panic("伪装方式"+unit.Config.Disguise+"不存在")
 	}
 	unit.Disguise=dsg()
-	dsgInitErr:=unit.Disguise.Init(unit.Config.DisguiseParam)
+	dsgInitErr:=unit.Disguise.Init(unit.Config.DisguiseParam,&unit.DsgReserved)
 	if dsgInitErr!=nil{
 		panic("伪装方式"+unit.Config.Disguise+"加载错误！原因："+dsgInitErr.Error())
 	}
@@ -381,7 +381,7 @@ func NewClientComing(client *User){
 		}
 	}()
 	go NewHeartBeatCountDown(client.AuthHeartBeat,5,client,"Auth or Connect")
-	dsgErr:=client.ProxyUnit.Disguise.Action(client.Conn,&client.DsgReserved)
+	dsgErr:=client.ProxyUnit.Disguise.Action(client.Conn,&client.DsgReserved,&client.ProxyUnit.DsgReserved)
 	if dsgErr!=nil{
 		panic("伪装时出现错误："+dsgErr.Error())
 	}

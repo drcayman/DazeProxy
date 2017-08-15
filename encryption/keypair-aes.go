@@ -15,7 +15,7 @@ import (
 )
 
 type KeypairAes struct {
-
+	reserved string
 }
 type KeypairAesTmp struct {
 	Key []byte
@@ -63,13 +63,12 @@ func (this *KeypairAes)InitUser(conn net.Conn,client *interface{},server *interf
 	keyEncoded:=make([]byte,len(pubkey))
 	enc.XORKeyStream(keyEncoded,pubkey)
 	conn.Write(keyEncoded)
-
 	pos:=0
 	buf:=make([]byte,256)
 	for pos<256{
 		n,err:=conn.Read(buf[pos:])
 		if err!=nil{
-			return errors.New("客户端在握手期间断开连接")
+			return errors.New("客户端在握手期间断开连接"+err.Error())
 		}
 		pos+=n
 	}

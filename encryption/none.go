@@ -3,7 +3,7 @@ package encryption
 import "net"
 
 type none struct {
-
+	reserved string
 }
 func (this *none) Init(arg string,server *interface{})(error){
 	return nil

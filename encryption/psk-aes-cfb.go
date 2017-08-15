@@ -9,7 +9,7 @@ import (
 )
 
 type PskAesCfb struct {
-
+	reserved string
 }
 type PskAesCfbTmp struct {
 	Key []byte
