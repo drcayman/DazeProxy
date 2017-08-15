@@ -35,4 +35,7 @@ func init(){
 	encryptionMap["psk-rc4-md5"]=func()(EncryptionAction){
 		return EncryptionAction(new(PskRc4Md5))
 	}
+	encryptionMap["keypair-aes"]=func()(EncryptionAction){
+		return EncryptionAction(new(KeypairAes))
+	}
 }
