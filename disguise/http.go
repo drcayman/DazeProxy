@@ -18,6 +18,7 @@ func (this *HTTP) Action(conn net.Conn ,client *interface{}, server *interface{}
 		return err
 	}
 	rsp:=http.Response{
+		Proto:"HTTP/1.1",
 		StatusCode:200,
 		Body:nil,
 	}
