@@ -3,7 +3,7 @@
   "ProxyUnit":[
     {
       "Port":"5294",
-      "Disguise":"http",
+      "Disguise":"tls_handshake",
       "DisguiseParam":"",
       "Encryption":"keypair-aes",
       "EncryptionParam":"",

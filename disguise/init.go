@@ -27,4 +27,7 @@ func init(){
 	disguiseMap["http"]=func()(DisguiseAction){
 		return DisguiseAction(&HTTP{})
 	}
+	disguiseMap["tls_handshake"]=func()(DisguiseAction){
+		return DisguiseAction(&TlsHandshake{})
+	}
 }
