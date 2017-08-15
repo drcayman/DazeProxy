@@ -3,7 +3,7 @@
   "ProxyUnit":[
     {
       "Port":"5294",
-      "Disguise":"http_get",
+      "Disguise":"http",
       "DisguiseParam":"www.qq.com",
       "Encryption":"keypair-aes",
       "EncryptionParam":"",

@@ -24,6 +24,7 @@ func (this *HTTP) Action(conn net.Conn ,client *interface{}, server *interface{}
 		StatusCode:200,
 		Body:nil,
 	}
+	rsp.Header=make(http.Header)
 	rsp.Header.Add("Content-Type","text/html; charset=gbk")
 	rsp.Header.Add("Connection","keep-alive")
 	rsp.Header.Add("Date",time.Now().Format("Mon,2 Jan 2006 15:04:05 MST"))
