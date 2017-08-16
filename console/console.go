@@ -6,7 +6,6 @@ import (
 	"os"
 	"DazeProxy/util"
 	"strings"
-	"time"
 	"DazeProxy/database"
 )
 
@@ -16,10 +15,10 @@ func ShowMenu(){
 	fmt.Println("users 显示所有用户")
 	fmt.Println("add 增加一个新用户（比如add test 1234意思是增加一个用户名为test，密码为1234的用户名）")
 	fmt.Println("del 删除一个用户（比如del 4就是删除掉ID为4的用户）")
+	fmt.Println("exit 退出")
 	fmt.Println("****************************")
 }
 func Start(){
-	time.Sleep(time.Microsecond*300)
 	ShowMenu()
 	r:=bufio.NewReader(os.Stdin)
 	command:=""
@@ -27,7 +26,6 @@ func Start(){
 		fmt.Print(">>>>>>")
 		buf,_,err:=r.ReadLine()
 		if err!=nil{
-			fmt.Println("转入后台处理")
 			return
 		}
 		bufstr:=util.B2s(buf)
@@ -66,6 +64,8 @@ func Start(){
 			}else{
 				fmt.Println("删除用户失败，或许是ID错误了？")
 			}
+		case "exit":
+			return
 		default:
 			fmt.Println("命令格式错误，请输入help来查看帮助")
 		}

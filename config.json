@@ -3,19 +3,11 @@
   "ProxyUnit":[
     {
       "Port":"5294",
-      "Disguise":"http",
-      "DisguiseParam":"www.qq.com",
+      "Disguise":"none",
+      "DisguiseParam":"",
       "Encryption":"keypair-aes",
       "EncryptionParam":"",
-      "IPv6ResolvePrefer":true
-    },
-    {
-      "Port":"5295",
-      "Disguise":"none",
-      "DisguiseParam":"www.baidu.com",
-      "Encryption":"none",
-      "EncryptionParam":"1234567",
-      "IPv6ResolvePrefer":true
+      "IPv6ResolvePrefer":false
     }
   ]
 }

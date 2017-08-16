@@ -1,6 +1,5 @@
 package main
 
-
 import (
 	_ "DazeProxy/config"
 	_ "DazeProxy/database"
@@ -9,12 +8,14 @@ import (
 	"DazeProxy/proxy"
 	"DazeProxy/console"
 	"DazeProxy/common"
+	"github.com/crabkun/go-args"
 )
-
-
 func main(){
-
-	go console.Start()
+	m:=go_args.ReadArgs()
+	if _,consoleFlag:=m.GetArg("-console");consoleFlag{
+		console.Start()
+		return
+	}
 	for _,v:=range config.Config.ProxyUnit{
 		unit:= common.ProxyUnit{
 			Config:v,
