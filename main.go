@@ -9,8 +9,10 @@ import (
 	"DazeProxy/console"
 	"DazeProxy/common"
 	"github.com/crabkun/go-args"
+	"fmt"
 )
 func main(){
+	fmt.Println("DazeProxy V2.0-2017081601 Author:螃蟹")
 	m:=go_args.ReadArgs()
 	if _,consoleFlag:=m.GetArg("-console");consoleFlag{
 		console.Start()
