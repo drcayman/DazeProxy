@@ -129,6 +129,13 @@ func ReadFromClient(client *User) ([]byte,error){
 func ServeClient(client *User){
 	flag:=0
 	defer func(){
+		if err := recover(); err != nil{
+			if config.Config.IsDebug{
+				log.Printf("客户端(%s)处理失败，已断开（原因：%s）\n",client.Conn.RemoteAddr(),err)
+			}
+			DisconnectUserAndRemoteConn(client)
+			return
+		}
 		if flag==0{
 			DisconnectUser(client)
 			if config.Config.IsDebug {
@@ -208,7 +215,14 @@ func ServeCommand(client *User,command byte,data []byte) int {
 		case 0x02:{
 			authinfo:=JsonAuth{}
 			err:=json.Unmarshal(data,&authinfo)
-			if err!=nil || !database.CheckUserPass(authinfo.Username,authinfo.Password){
+			if err!=nil{
+				if config.Config.IsDebug {
+					log.Printf("客户端%s想要发来无法解析的数据！\n",client.Conn.RemoteAddr())
+				}
+				SendPacketAndDisconnect(client, MakePacket(0xE3, nil))
+				return 0
+			}
+			if !client.ProxyUnit.Config.NoAuth && !database.CheckUserPass(authinfo.Username,authinfo.Password){
 				if config.Config.IsDebug {
 					log.Printf("客户端%s想要代理[%s]%s:%s但验证失败了！\n",client.Conn.RemoteAddr(),authinfo.Net,authinfo.Host,authinfo.Port)
 				}
@@ -335,13 +349,14 @@ func StartServer(unit ProxyUnit){
 	if err!=nil{
 		panic(err.Error())
 	}
-	log.Printf("代理服务单元启动成功（端口：%s，加密方式：%s，加密参数：%s，伪装方式：%s，伪装参数：%s，优先解析IPV6：%v）\n",
+	log.Printf("代理服务单元启动成功（端口：%s，加密方式：%s，加密参数：%s，伪装方式：%s，伪装参数：%s，优先解析IPV6：%v，用户密码验证：%v）\n",
 		unit.Config.Port,
 		unit.Config.Encryption,
 		unit.Config.EncryptionParam,
 		unit.Config.Disguise,
 		unit.Config.DisguiseParam,
-		unit.Config.IPv6ResolvePrefer)
+		unit.Config.IPv6ResolvePrefer,
+		!unit.Config.NoAuth)
 	for {
 		conn, AcceptErr := l.Accept()
 		if AcceptErr!=nil{
@@ -367,7 +382,10 @@ func DisconnectUser(client *User){
 func DisconnectUserAndRemoteConn(client *User){
 	CloseChan(client)
 	client.Conn.Close()
-	client.RemoteConn.Close()
+	if client.RemoteConn!=nil{
+		client.RemoteConn.Close()
+	}
+
 }
 
 //新客户端到来时的准备工作
@@ -376,8 +394,8 @@ func NewClientComing(client *User){
 		if err := recover(); err != nil{
 			if config.Config.IsDebug{
 				log.Printf("客户端(%s)处理失败（原因：%s）\n",client.Conn.RemoteAddr(),err)
-				DisconnectUser(client)
 			}
+			DisconnectUser(client)
 		}
 	}()
 	go NewHeartBeatCountDown(client.AuthHeartBeat,5,client,"Auth or Connect")

@@ -18,6 +18,7 @@ type ProxyUnitStruct struct{
 	Encryption string
 	EncryptionParam string
 	IPv6ResolvePrefer bool
+	NoAuth bool
 }
 var Config ConfigStruct
 func init(){
