@@ -257,8 +257,8 @@ func ServeCommand(client *User,command byte,data []byte) int {
 			client.Network=authinfo.Net
 			client.IsConnected=true
 			if authinfo.Net=="udp"{
-				ProxyConn.SetReadDeadline(time.Now().Add(time.Second*2))
-				ProxyConn.SetWriteDeadline(time.Now().Add(time.Second*2))
+				ProxyConn.SetReadDeadline(time.Now().Add(time.Second*5))
+				ProxyConn.SetWriteDeadline(time.Now().Add(time.Second*5))
 			}
 			SendPacket(client, MakePacket(0xC1, []byte(ProxyConn.RemoteAddr().String())))
 			go BridgeClientToRemote(client,ProxyConn)
@@ -298,7 +298,7 @@ func BridgeClientToRemote(client *User,Remote net.Conn){
 		}
 		Remote.Write(buf)
 		if client.Network=="udp"{
-			Remote.SetWriteDeadline(time.Now().Add(time.Second*2))
+			Remote.SetWriteDeadline(time.Now().Add(time.Second*5))
 		}
 	}
 }
@@ -319,7 +319,7 @@ func BridgeRemoteToClient(client *User,Remote net.Conn){
 		}
 		SendPacket(client,buf[:n])
 		if client.Network=="udp"{
-			Remote.SetReadDeadline(time.Now().Add(time.Second*2))
+			Remote.SetReadDeadline(time.Now().Add(time.Second*5))
 		}
 	}
 }
