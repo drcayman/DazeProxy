@@ -16,7 +16,6 @@ type User struct {
 	RandomData []byte
 	RetryTime int
 	RemoteConn net.Conn
-	UDPAliveTime chan int
 	Network string
 	Locker sync.Mutex
 	ChanCloseFlag bool
@@ -29,6 +28,5 @@ func NewUser(conn net.Conn) *User{
 	return &User{
 		Conn:conn,
 		AuthHeartBeat:make(chan int),
-		UDPAliveTime:make(chan int),
 	}
 }

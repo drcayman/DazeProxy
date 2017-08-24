@@ -12,6 +12,8 @@ import (
 	"DazeProxy/encryption"
 	"DazeProxy/disguise"
 	. "DazeProxy/common"
+	"time"
+	"strings"
 )
 var Server *net.Listener
 type JsonAuth struct{
@@ -178,7 +180,7 @@ func DecodeAddressAndCheck(host string,port string,IPv6ResolvePrefer bool)(strin
 		return "",errors.New("error3")
 	}
 	ipstring:=ips.String()
-	if len(ipstring)>15{
+	if strings.Count(ipstring,":")>1{
 		ipstring="["+ipstring+"]"
 	}
 	return ipstring+":"+port,nil
@@ -254,6 +256,10 @@ func ServeCommand(client *User,command byte,data []byte) int {
 			client.RemoteConn=ProxyConn
 			client.Network=authinfo.Net
 			client.IsConnected=true
+			if authinfo.Net=="udp"{
+				ProxyConn.SetReadDeadline(time.Now().Add(time.Second*2))
+				ProxyConn.SetWriteDeadline(time.Now().Add(time.Second*2))
+			}
 			SendPacket(client, MakePacket(0xC1, []byte(ProxyConn.RemoteAddr().String())))
 			go BridgeClientToRemote(client,ProxyConn)
 			go BridgeRemoteToClient(client,ProxyConn)
@@ -272,7 +278,6 @@ func CloseChan(client *User) {
 	client.Locker.Lock()
 	if !client.ChanCloseFlag{
 	close(client.AuthHeartBeat)
-	close(client.UDPAliveTime)
 	}
 	client.ChanCloseFlag=true
 	client.Locker.Unlock()
@@ -292,6 +297,9 @@ func BridgeClientToRemote(client *User,Remote net.Conn){
 			return
 		}
 		Remote.Write(buf)
+		if client.Network=="udp"{
+			Remote.SetWriteDeadline(time.Now().Add(time.Second*2))
+		}
 	}
 }
 
@@ -310,6 +318,9 @@ func BridgeRemoteToClient(client *User,Remote net.Conn){
 			return
 		}
 		SendPacket(client,buf[:n])
+		if client.Network=="udp"{
+			Remote.SetReadDeadline(time.Now().Add(time.Second*2))
+		}
 	}
 }
 

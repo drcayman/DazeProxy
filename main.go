@@ -14,7 +14,7 @@ import (
 	"os"
 )
 func main(){
-	fmt.Println("DazeProxy V2.0-2017081601 Author:螃蟹")
+	fmt.Println("DazeProxy V2.0-2017082401 Author:螃蟹")
 	m:=go_args.ReadArgs()
 	if _,consoleFlag:=m.GetArg("-console");consoleFlag {
 		console.Start()
