@@ -44,22 +44,17 @@ func init(){
 	encryptionMap["none"]=func()(Action){
 		return Action(&none{})
 	}
-
+	encryptionMap["keypair-aes"]=func()(Action){
+		return Action(&KeypairAes{})
+	}
+	encryptionMap["psk-aes-256-cfb"]=func()(Action){
+		return Action(&PskAes256Cfb{})
+	}
+	encryptionMap["psk-aes-128-cfb"]=func()(Action){
+		return Action(&PskAesCfb{})
+	}
+	encryptionMap["psk-rc4-md5"]=func()(Action){
+		return Action(&PskRc4Md5{})
+	}
 }
 
-//none-无加密
-type none struct {
-	RegArg string
-}
-func (this *none)Init(param string,server *interface{})(error){
-	return nil
-}
-func (this *none)InitUser(conn net.Conn,client *interface{},server *interface{})(error){
-	return nil
-}
-func (this *none)Encrypt(client *interface{},server *interface{},data []byte)([]byte,error){
-	return data,nil
-}
-func (this *none)Decrypt(client *interface{},server *interface{},data []byte)([]byte,error){
-	return data,nil
-}
