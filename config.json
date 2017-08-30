@@ -1,0 +1,12 @@
+{
+	"Debug":true,
+	"Proxy":[
+		{
+			"Port":"5294",
+			"Encryption":"none",
+			"EncryptionParam":"",
+			"Obscure":"http",
+			"ObscureParam":""
+		}
+	]
+}
