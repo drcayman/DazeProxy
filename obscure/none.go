@@ -2,7 +2,7 @@ package obscure
 import(
 	"net"
 )
-//none-无混淆
+//none-无伪装
 type none struct {
 	RegArg string
 }
