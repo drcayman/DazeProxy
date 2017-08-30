@@ -31,15 +31,15 @@ func StartServer(s common.S_proxy){
 		panic("加密方式"+s.Encryption+"加载错误！原因："+EInitErr.Error())
 	}
 
-	//加载混淆模块和初始化
+	//加载伪装模块和初始化
 	Ob,ExistFlag:=obscure.GetObscure(s.Obscure)
 	if !ExistFlag{
-		panic("混淆方式"+s.Obscure+"不存在")
+		panic("伪装方式"+s.Obscure+"不存在")
 	}
 	s.Ob=Ob()
 	ObInitErr:=s.Ob.Init(s.ObscureParam,&s.ObReserved)
 	if ObInitErr!=nil{
-		panic("混淆方式"+s.Obscure+"加载错误！原因："+ObInitErr.Error())
+		panic("伪装方式"+s.Obscure+"加载错误！原因："+ObInitErr.Error())
 	}
 
 	//开始监听

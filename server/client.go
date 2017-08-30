@@ -24,7 +24,7 @@ type S_Client struct {
 	Network string
 	//预留给加密
 	EReserved interface{}
-	//预留给混淆
+	//预留给伪装
 	ObReserved interface{}
 	//所属代理实例
 	Proxy *common.S_proxy
@@ -62,7 +62,7 @@ func (client *S_Client)Read() []byte {
 	//解码头部
 	header:=client.Decode(headerEncoded)
 	if header[0]!=0xF1 && header[3]!=0xF2{
-		panic("头部不匹配")
+		panic("头部不匹配，可能是伪装或者加密方式和参数不正确")
 	}
 	//读取负载
 	length:=int(header[1])+int(header[2])*256
@@ -87,7 +87,7 @@ func (client *S_Client)SafeSend(data []byte,conn net.Conn){
 	for pos:=0;pos<length;{
 		n,err:=conn.Write(data[pos:])
 		if err!=nil {
-			panic("连接正常断开")
+			panic(nil)
 		}
 		pos+=n
 	}
@@ -97,7 +97,7 @@ func (client *S_Client)SafeRead(conn net.Conn,length int) ([]byte) {
 	for pos:=0;pos<length;{
 		n,err:=conn.Read(buf[pos:])
 		if err!=nil {
-			panic("连接正常断开")
+			panic(nil)
 		}
 		pos+=n
 	}
@@ -257,7 +257,7 @@ func NewClientComing(client *S_Client){
 	}()
 	//设置验证超时时间
 	client.UserConn.SetDeadline(time.Now().Add(time.Second*5))
-	//开始混淆
+	//开始伪装
 	obErr:=client.Proxy.Ob.Action(client.UserConn,&client.Proxy.ObReserved)
 	if obErr!=nil{
 		panic("伪装时出现错误："+obErr.Error())
