@@ -6,12 +6,11 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"errors"
-	"strings"
 	"time"
 	"strconv"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/md5"
+	"github.com/crabkun/DazeProxy/util"
 )
 
 type KeypairAes struct {
@@ -43,9 +42,9 @@ func (this *KeypairAes)InitUser(conn net.Conn,client *interface{},server *interf
 	utc=utc.Add(s)
 	UTCunix:=utc.Unix()
 	UTCunixStr:=strconv.FormatInt(UTCunix,10)
-	UTCunixStrPadded:=this.StrPadding(UTCunixStr)
+	UTCunixStrPadded:=util.StrPadding(UTCunixStr,16,"0")
 
-	aesKey,GenMd5Err:=this.GenMd5Key(UTCunixStrPadded)
+	aesKey,GenMd5Err:=util.Gen16Md5Key(UTCunixStrPadded)
 	if GenMd5Err!=nil{
 		return GenMd5Err
 	}
@@ -104,17 +103,4 @@ func (this *KeypairAes)Decrypt(client *interface{},server *interface{},data []by
 	Decrypter:=cipher.NewCFBDecrypter(t.Block,t.Key)
 	Decrypter.XORKeyStream(dst,data)
 	return dst,nil
-}
-func (this *KeypairAes)StrPadding(str string) string {
-	l:=16-len(str)
-	newstr:=str+strings.Repeat("0",l)
-	return newstr
-}
-func (this *KeypairAes) GenMd5Key(key string) ([]byte,error){
-	test := md5.New()
-	_,err:=test.Write([]byte(key))
-	if err!=nil{
-		return nil,err
-	}
-	return test.Sum(nil),nil
 }

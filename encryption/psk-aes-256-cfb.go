@@ -5,9 +5,8 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"errors"
-	"crypto/md5"
-	"encoding/hex"
 	"log"
+	"github.com/crabkun/DazeProxy/util"
 )
 
 type PskAes256Cfb struct {
@@ -17,20 +16,9 @@ type PskAesCfb256Tmp struct {
 	Key []byte
 	Block cipher.Block
 }
-func (this *PskAes256Cfb)GenKey(key string) ([]byte,error){
-	test := md5.New()
-	_,err:=test.Write([]byte(key))
-	if err!=nil{
-		return nil,err
-	}
-	md5src:=test.Sum(nil)
-	md5dst:=make([]byte,32)
-	hex.Encode(md5dst,md5src)
-	return md5dst,nil
 
-}
 func (this *PskAes256Cfb) Init(param string,server *interface{})(error){
-	key,GenKeyErr:=this.GenKey(param)
+	key,GenKeyErr:=util.Gen32Md5Key(param)
 	if GenKeyErr!=nil{
 		return GenKeyErr
 	}

@@ -4,7 +4,7 @@ import (
 	"net"
 	"crypto/rc4"
 	"errors"
-	"crypto/md5"
+	"github.com/crabkun/DazeProxy/util"
 )
 
 type PskRc4Md5 struct {
@@ -13,16 +13,9 @@ type PskRc4Md5 struct {
 type PskRc4Md5Tmp struct {
 	Cipher *rc4.Cipher
 }
-func (this *PskRc4Md5) GenKey(key string) ([]byte,error){
-	test := md5.New()
-	_,err:=test.Write([]byte(key))
-	if err!=nil{
-		return nil,err
-	}
-	return test.Sum(nil),nil
-}
+
 func (this *PskRc4Md5) Init(param string,server *interface{})(error){
-	key,GenKeyErr:=this.GenKey(param)
+	key,GenKeyErr:=util.Gen16Md5Key(param)
 	if GenKeyErr!=nil{
 		return GenKeyErr
 	}
