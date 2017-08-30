@@ -16,11 +16,11 @@ type S_proxy struct{
 	Encryption string
 	EncryptionParam string
 
-	//混淆方式与参数
+	//伪装方式与参数
 	Obscure string
 	ObscureParam string
 
-	//加密与混淆的接口
+	//加密与伪装的接口
 	Ob obscure.Action `json:"-"`
 	E encryption.Action `json:"-"`
 	EReserved interface{} `json:"-"`
