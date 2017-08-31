@@ -8,13 +8,15 @@ import(
 	"log"
 	"net"
 	"fmt"
+	"sync"
 )
 //启动代理服务单元
-func StartServer(s common.S_proxy){
+func StartServer(s common.S_proxy,wg sync.WaitGroup){
 	defer func(){
 		if err := recover(); err != nil {
 			log.Printf("代理实例（端口：%s）启动失败（原因：%s）\n",s.Port,err)
 		}
+		wg.Done()
 	}()
 	if s.Port==""{
 		panic("端口不能为空")
@@ -63,4 +65,5 @@ func StartServer(s common.S_proxy){
 		client:=PackNewUser(conn,&s)
 		go NewClientComing(client)
 	}
+
 }

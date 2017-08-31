@@ -8,6 +8,9 @@ import(
 	"github.com/crabkun/DazeProxy/util"
 	"github.com/crabkun/DazeProxy/common"
 	"github.com/crabkun/DazeProxy/helper"
+	"github.com/crabkun/DazeProxy/database"
+	"errors"
+	"strings"
 )
 type S_Client struct {
 	//代理用户的套接字
@@ -103,6 +106,22 @@ func (client *S_Client)SafeRead(conn net.Conn,length int) ([]byte) {
 	}
 	return buf
 }
+func (client *S_Client)Auth(username string,password string) error {
+	if client.Proxy.Config.NoAuth{
+		return nil
+	}
+	flag,Expired,group:=database.CheckUserPass(username,password)
+	if !flag{
+		return errors.New("用户名或者密码错误")
+	}
+	if !Expired.IsZero() && Expired.UTC().Sub(time.Now().UTC()) < 0{
+		return errors.New("用户已过期")
+	}
+	if group!="" && strings.Index(group,"|"+client.Proxy.Group+"|")==-1{
+		return errors.New("用户当前的权限无法登录此服务器组")
+	}
+	return nil
+}
 func (client *S_Client)Serve(){
 	var err error
 	authjson:=client.Read()
@@ -115,6 +134,11 @@ func (client *S_Client)Serve(){
 	if authinfo.Net!="tcp" && authinfo.Net!="udp"{
 		client.WriteJsonRet(-2,"")
 		panic("网络协议有误")
+	}
+	err=client.Auth(authinfo.Username,authinfo.Password)
+	if err!=nil{
+		client.WriteJsonRet(-5,err.Error())
+		panic(authinfo.Username+"登录失败:"+err.Error())
 	}
 	//验证成功，去除验证超时
 	client.Authed=true
