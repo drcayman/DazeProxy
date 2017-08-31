@@ -1,12 +1,24 @@
 {
-	"Debug":true,
-	"Proxy":[
-		{
-			"Port":"5294",
-			"Encryption":"none",
-			"EncryptionParam":"",
-			"Obscure":"http",
-			"ObscureParam":""
-		}
-	]
+  "Proxy":[
+    {
+      "Port":"5501",
+      "Encryption":"keypair-aes",
+      "EncryptionParam":"",
+      "Obscure":"none",
+      "ObscureParam":"",
+      "Group":"default"
+    },
+    {
+      "Port":"10811",
+      "Encryption":"keypair-aes",
+      "EncryptionParam":"",
+      "Obscure":"http",
+      "ObscureParam":"",
+      "Group":"default"
+    }
+  ],
+  "DatabaseDriver":"sqlite3",
+  "DataBaseConnectionString":"daze.db",
+  "NoAuth":false,
+  "Debug":true
 }
