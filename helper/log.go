@@ -7,6 +7,3 @@ func DebugPrintln(msg string){
 		log.Println(msg)
 	}
 }
-func Println(msg string){
-		log.Println(msg)
-}
