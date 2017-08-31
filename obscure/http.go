@@ -29,10 +29,10 @@ func (this *Http) Action(conn net.Conn , server *interface{}) (error){
 		"\r\nContent-Type: text/html; charset=gbk\r\nContent-Length: "+strconv.Itoa(ContentLength)+"\r\n"+
 		"Connection: keep-alive\r\nCache-Control: no-cache\r\n\r\n"))
 	//conn.Write([]byte(util.GetRandomString(ContentLength)))
-	SafeRead(conn,ContentLength)
+	this.SafeRead(conn,ContentLength)
 	return nil
 }
-func SafeRead(conn net.Conn,length int) ([]byte,error) {
+func (this *Http) SafeRead(conn net.Conn,length int) ([]byte,error) {
 	buf:=make([]byte,length)
 	for pos:=0;pos<length;{
 		n,err:=conn.Read(buf[pos:])
