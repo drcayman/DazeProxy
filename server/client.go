@@ -114,7 +114,7 @@ func (client *S_Client)Auth(username string,password string) error {
 	if !flag{
 		return errors.New("用户名或者密码错误")
 	}
-	if !Expired.IsZero() && Expired.UTC().Sub(time.Now().UTC()) < 0{
+	if !Expired.IsZero() && Expired.Sub(time.Now().UTC()) < 0{
 		return errors.New("用户已过期")
 	}
 	if group!="" && strings.Index(group,"|"+client.Proxy.Group+"|")==-1{
