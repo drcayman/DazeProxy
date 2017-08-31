@@ -59,6 +59,9 @@ func StartServer(s common.S_proxy,wg sync.WaitGroup){
 		conn, AcceptErr := l.Accept()
 		if AcceptErr!=nil{
 			log.Printf("代理实例（端口：%s）接受客户端失败！（原因：%s）\n",s.Port,AcceptErr.Error())
+			if err,ok:=AcceptErr.(net.Error);ok && !err.Temporary(){
+				return
+			}
 			continue
 		}
 		helper.DebugPrintln(fmt.Sprintf("代理实例（端口：%s）接受客户端（%s）",s.Port,conn.RemoteAddr()))
