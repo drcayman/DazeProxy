@@ -22,5 +22,6 @@ func LoadConfig(config *common.S_config){
 	fmt.Println("配置文件读取成功：")
 	fmt.Println("    调试模式：",config.Debug)
 	fmt.Printf("一共%d个代理服务单元\n",len(config.Proxy))
+	os.Stdout.Sync()
 	IsDebug=config.Debug
 }
