@@ -11,6 +11,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"github.com/crabkun/DazeProxy/util"
+	mrand "math/rand"
 )
 
 type KeypairAes struct {
@@ -21,7 +22,7 @@ type KeypairAesTmp struct {
 	Block cipher.Block
 }
 func (this *KeypairAes) Init(param string,server *interface{})(error){
-	privateKey, err := rsa.GenerateKey(rand.Reader,2048)
+	privateKey, err := rsa.GenerateKey(rand.Reader,8*(128+mrand.Intn(64)))
 	if err!=nil{
 		return err
 	}
@@ -29,46 +30,43 @@ func (this *KeypairAes) Init(param string,server *interface{})(error){
 	return nil
 }
 func (this *KeypairAes)InitUser(conn net.Conn,client *interface{},server *interface{})(error){
+	var err error
 	key,flag:=(*server).(*rsa.PrivateKey)
 	if !flag{
 		return errors.New("unknown error")
 	}
-
 	utc:=time.Now().UTC()
-	s,ParseDuration:=time.ParseDuration(utc.Format("-15h04m05s"))
-	if ParseDuration!=nil{
-		return ParseDuration
+	s,err:=time.ParseDuration(utc.Format("-15h04m05s"))
+	if err!=nil{
+		return err
 	}
 	utc=utc.Add(s)
 	UTCunix:=utc.Unix()
 	UTCunixStr:=strconv.FormatInt(UTCunix,10)
 	UTCunixStrPadded:=util.StrPadding(UTCunixStr,16,"0")
 
-	aesKey,GenMd5Err:=util.Gen16Md5Key(UTCunixStrPadded)
-	if GenMd5Err!=nil{
-		return GenMd5Err
+	aesKey,err:=util.Gen16Md5Key(UTCunixStrPadded)
+	if err!=nil{
+		return err
 	}
-
-	Cipher,CipherErr:=aes.NewCipher(aesKey)
-	if CipherErr!=nil{
-		return CipherErr
+	Cipher,err:=aes.NewCipher(aesKey)
+	if err!=nil{
+		return err
 	}
 	enc:=cipher.NewCFBEncrypter(Cipher,aesKey[:Cipher.BlockSize()])
-	pubkey,GenPublicKeyErr:=x509.MarshalPKIXPublicKey(&key.PublicKey)
-	if GenPublicKeyErr!=nil{
+	pubkey,err:=x509.MarshalPKIXPublicKey(&key.PublicKey)
+	if err!=nil{
 		return errors.New("unknown error")
 	}
 	keyEncoded:=make([]byte,len(pubkey))
 	enc.XORKeyStream(keyEncoded,pubkey)
-	conn.Write(keyEncoded)
-	pos:=0
-	buf:=make([]byte,256)
-	for pos<256{
-		n,err:=conn.Read(buf[pos:])
-		if err!=nil{
-			return errors.New("客户端在握手期间断开连接"+err.Error())
-		}
-		pos+=n
+	keyEncodedBuf:=make([]byte,len(keyEncoded)+1)
+	keyEncodedBuf[0]=byte(len(keyEncoded))
+	copy(keyEncodedBuf[1:],keyEncoded)
+	conn.Write(keyEncodedBuf)
+	buf,err:=this.SafeRead(conn,key.N.BitLen()/8)
+	if err!=nil{
+		return errors.New("无法接收客户端的密钥")
 	}
 	DecryptBuf,DecryptErr:=rsa.DecryptPKCS1v15(rand.Reader,key,buf)
 	if DecryptErr!=nil{
@@ -76,9 +74,9 @@ func (this *KeypairAes)InitUser(conn net.Conn,client *interface{},server *interf
 	}
 
 	t:=KeypairAesTmp{}
-	t.Block,CipherErr=aes.NewCipher(DecryptBuf)
-	if CipherErr!=nil{
-		return CipherErr
+	t.Block,err=aes.NewCipher(DecryptBuf)
+	if err!=nil{
+		return err
 	}
 	t.Key=DecryptBuf[:t.Block.BlockSize()]
 	*client=t
@@ -103,4 +101,15 @@ func (this *KeypairAes)Decrypt(client *interface{},server *interface{},data []by
 	Decrypter:=cipher.NewCFBDecrypter(t.Block,t.Key)
 	Decrypter.XORKeyStream(dst,data)
 	return dst,nil
+}
+func (this *KeypairAes)SafeRead(conn net.Conn,length int)([]byte,error){
+	buf:=make([]byte,length)
+	for pos:=0;pos<length;{
+		n,err:=conn.Read(buf[pos:])
+		if err!=nil {
+			return nil,err
+		}
+		pos+=n
+	}
+	return buf,nil
 }
