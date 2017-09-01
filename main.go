@@ -9,12 +9,15 @@ import (
 	"github.com/crabkun/DazeProxy/database"
 	"sync"
 	"os"
+	"math/rand"
+	"time"
 )
 
 var config common.S_config
 var wg sync.WaitGroup
 
 func main(){
+	rand.Seed(time.Now().UnixNano())
 	//加载配置
 	helper.LoadConfig(&config)
 	log.Println("DazeProxy V3-201708311")
