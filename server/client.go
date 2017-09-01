@@ -11,6 +11,7 @@ import(
 	"github.com/crabkun/DazeProxy/database"
 	"errors"
 	"strings"
+	"bytes"
 )
 type S_Client struct {
 	//代理用户的套接字
@@ -82,8 +83,9 @@ func (client *S_Client)Write(data []byte){
 		panic("数据长度不正确(1-65535)")
 	}
 	header:=[]byte{0xF1,byte(length%0x100),byte(length/0x100),0xF2}
-	client.SafeSend(client.Encode(header),client.UserConn)
-	client.SafeSend(client.Encode(data),client.UserConn)
+	buffer:=bytes.NewBuffer(client.Encode(header))
+	buffer.Write(client.Encode(data))
+	client.SafeSend(buffer.Bytes(),client.UserConn)
 }
 func (client *S_Client)SafeSend(data []byte,conn net.Conn){
 	length:=len(data)
@@ -154,6 +156,7 @@ func (client *S_Client)Serve(){
 			client.WriteJsonRet(-3,"")
 			panic("ip地址有误")
 		}
+		client.WriteJsonRet(2,"")
 		client.RemoteTCPConn,err=net.Dial(authinfo.Net,authinfo.Host)
 		if err!=nil{
 			client.WriteJsonRet(-4,"")
