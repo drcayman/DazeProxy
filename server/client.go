@@ -156,7 +156,6 @@ func (client *S_Client)Serve(){
 			client.WriteJsonRet(-3,"")
 			panic("ip地址有误")
 		}
-		client.WriteJsonRet(2,"")
 		client.RemoteTCPConn,err=net.DialTimeout(authinfo.Net,authinfo.Host,dailtimeout)
 		if err!=nil{
 			client.WriteJsonRet(-4,"")
@@ -283,7 +282,7 @@ func NewClientComing(client *S_Client){
 		}
 	}()
 	//设置验证超时时间
-	client.UserConn.SetDeadline(time.Now().Add(time.Second*15))
+	client.UserConn.SetDeadline(time.Now().Add(time.Second*10))
 	//开始伪装
 	obErr:=client.Proxy.Ob.Action(client.UserConn,&client.Proxy.ObReserved)
 	if obErr!=nil{

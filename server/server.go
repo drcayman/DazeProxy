@@ -14,7 +14,7 @@ import(
 //启动代理服务单元
 var dailtimeout time.Duration
 func StartServer(s common.S_proxy,wg sync.WaitGroup){
-	dailtimeout,_=time.ParseDuration("10s")
+	dailtimeout,_=time.ParseDuration("8s")
 	defer func(){
 		if err := recover(); err != nil {
 			log.Printf("代理实例（端口：%s）启动失败（原因：%s）\n",s.Port,err)
