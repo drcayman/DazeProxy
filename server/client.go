@@ -157,7 +157,7 @@ func (client *S_Client)Serve(){
 			panic("ip地址有误")
 		}
 		client.WriteJsonRet(2,"")
-		client.RemoteTCPConn,err=net.Dial(authinfo.Net,authinfo.Host)
+		client.RemoteTCPConn,err=net.DialTimeout(authinfo.Net,authinfo.Host,dailtimeout)
 		if err!=nil{
 			client.WriteJsonRet(-4,"")
 			panic("无法连接指定地址"+err.Error())
@@ -283,7 +283,7 @@ func NewClientComing(client *S_Client){
 		}
 	}()
 	//设置验证超时时间
-	client.UserConn.SetDeadline(time.Now().Add(time.Second*5))
+	client.UserConn.SetDeadline(time.Now().Add(time.Second*15))
 	//开始伪装
 	obErr:=client.Proxy.Ob.Action(client.UserConn,&client.Proxy.ObReserved)
 	if obErr!=nil{
