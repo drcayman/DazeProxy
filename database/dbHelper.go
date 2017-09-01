@@ -5,7 +5,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"log"
 	"time"
-	"github.com/crabkun/DazeProxy/util"
 )
 var engine *xorm.Engine
 type User struct {
@@ -22,7 +21,7 @@ func (User) TableName() string {
 }
 func CheckUserPass(username string,password string) (bool,time.Time,string){
 	var user User
-	b,_:=engine.Where("username = ?",username).And("password = ?",util.GetDoubleMd5(password)).Get(&user)
+	b,_:=engine.Where("username = ?",username).And("password = ?",password).Get(&user)
 	return b,user.Expired,user.Group
 }
 func GetUserCount() int64 {
