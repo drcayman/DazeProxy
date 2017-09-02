@@ -12,7 +12,6 @@ import(
 	"errors"
 	"strings"
 	"bytes"
-	"log"
 )
 type S_Client struct {
 	//代理用户的套接字
