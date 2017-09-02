@@ -12,6 +12,7 @@ import(
 	"errors"
 	"strings"
 	"bytes"
+	"log"
 )
 type S_Client struct {
 	//代理用户的套接字
@@ -92,7 +93,7 @@ func (client *S_Client)SafeSend(data []byte,conn net.Conn){
 	for pos:=0;pos<length;{
 		n,err:=conn.Write(data[pos:])
 		if err!=nil {
-			panic(nil)
+			panic("")
 		}
 		pos+=n
 	}
@@ -102,7 +103,7 @@ func (client *S_Client)SafeRead(conn net.Conn,length int) ([]byte) {
 	for pos:=0;pos<length;{
 		n,err:=conn.Read(buf[pos:])
 		if err!=nil {
-			panic(nil)
+			panic("")
 		}
 		pos+=n
 	}
@@ -277,7 +278,9 @@ func PackNewUser(conn net.Conn,s *common.S_proxy) *S_Client{
 func NewClientComing(client *S_Client){
 	defer func(){
 		if err := recover(); err != nil{
-				helper.DebugPrintln(fmt.Sprintf("客户端(%s)处理结束（原因：%s）",client.UserConn.RemoteAddr(),err))
+				if err!=""{
+					helper.DebugPrintln(fmt.Sprintf("客户端(%s)处理结束（原因：%s）",client.UserConn.RemoteAddr(),err))
+				}
 				client.Disconnect()
 		}
 	}()
