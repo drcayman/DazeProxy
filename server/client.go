@@ -152,7 +152,7 @@ func (client *S_Client)Serve(){
 			client.WriteJsonRet(-3,"")
 			panic("ip地址有误")
 		}
-		if ip:=net.ParseIP(host);ip!=nil && ip.IsMulticast(){
+		if ip:=net.ParseIP(host);ip!=nil && (ip.IsMulticast() || ip.IsLoopback()){
 			client.WriteJsonRet(-3,"")
 			panic("ip地址有误")
 		}
