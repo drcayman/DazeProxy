@@ -12,6 +12,7 @@ import(
 	"errors"
 	"strings"
 	"bytes"
+	"io"
 )
 type S_Client struct {
 	//代理用户的套接字
@@ -99,12 +100,9 @@ func (client *S_Client)SafeSend(data []byte,conn net.Conn){
 }
 func (client *S_Client)SafeRead(conn net.Conn,length int) ([]byte) {
 	buf:=make([]byte,length)
-	for pos:=0;pos<length;{
-		n,err:=conn.Read(buf[pos:])
-		if err!=nil {
-			panic("")
-		}
-		pos+=n
+	_,err:=io.ReadFull(conn,buf)
+	if err!=nil {
+		panic("")
 	}
 	return buf
 }

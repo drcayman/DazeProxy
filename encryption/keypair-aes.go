@@ -12,6 +12,7 @@ import (
 	"crypto/cipher"
 	"github.com/crabkun/DazeProxy/util"
 	mrand "math/rand"
+	"io"
 )
 
 type KeypairAes struct {
@@ -104,12 +105,6 @@ func (this *KeypairAes)Decrypt(client *interface{},server *interface{},data []by
 }
 func (this *KeypairAes)SafeRead(conn net.Conn,length int)([]byte,error){
 	buf:=make([]byte,length)
-	for pos:=0;pos<length;{
-		n,err:=conn.Read(buf[pos:])
-		if err!=nil {
-			return nil,err
-		}
-		pos+=n
-	}
-	return buf,nil
+	_,err:=io.ReadFull(conn,buf)
+	return buf,err
 }

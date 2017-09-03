@@ -38,14 +38,3 @@ func (this *Http) Action(conn net.Conn , server *interface{}) (error){
 	}
 	return nil
 }
-func (this *Http) SafeRead(conn net.Conn,length int) ([]byte,error) {
-	buf:=make([]byte,length)
-	for pos:=0;pos<length;{
-		n,err:=conn.Read(buf[pos:])
-		if err!=nil {
-			return nil,errors.New("根据Content-Length读取负载错误")
-		}
-		pos+=n
-	}
-	return buf,nil
-}
