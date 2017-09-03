@@ -8,7 +8,6 @@ import (
 	"time"
 	"math/rand"
 	"strconv"
-	"errors"
 	"bytes"
 	"github.com/crabkun/DazeProxy/util"
 )
