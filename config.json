@@ -1,18 +1,10 @@
 {
   "Proxy":[
     {
-      "Port":"5501",
+      "Port":"5294",
       "Encryption":"keypair-aes",
       "EncryptionParam":"",
       "Obscure":"none",
-      "ObscureParam":"",
-      "Group":"default"
-    },
-    {
-      "Port":"10811",
-      "Encryption":"keypair-aes",
-      "EncryptionParam":"",
-      "Obscure":"http",
       "ObscureParam":"",
       "Group":"default"
     }

@@ -20,7 +20,7 @@ func main(){
 	rand.Seed(time.Now().UnixNano())
 	//加载配置
 	helper.LoadConfig(&config)
-	log.Println("DazeProxy V3-201708311")
+	log.Println("DazeProxy V3-201709031")
 	//如果处于验证模式则连接数据库
 	if !config.NoAuth{
 		database.LoadDatabase(config.DatabaseDriver,config.DatabaseConnectionString)
