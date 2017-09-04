@@ -12,5 +12,5 @@
   "DatabaseDriver":"sqlite3",
   "DataBaseConnectionString":"daze.db",
   "NoAuth":false,
-  "Debug":true
+  "Debug":false
 }
