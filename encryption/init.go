@@ -19,13 +19,13 @@ type Action interface {
 	//Encrypt，加密
 	//client与server同上
 	//data：源数据
-	//输出 加密后的数据 与 一个error(若发生了错误)
+	//返回 加密后的数据 与 一个error(若发生了错误)
 	Encrypt(client *interface{},	server *interface{},	data []byte) ([]byte,error)
 
 	//Decrypt，解密
 	//client与server同上
 	//data：加密数据
-	//输出 解密后的数据 与 一个error(若发生了错误)
+	//返回 解密后的数据 与 一个error(若发生了错误)
 	Decrypt(client *interface{},	server *interface{},	data []byte) ([]byte,error)
 }
 type regfunc func()(Action)
