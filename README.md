@@ -52,9 +52,9 @@ DazeProxy属于Daze代理套件。Daze代理套件包括：
 [开启用户验证并用DazeAdmin管理用户](https://github.com/crabkun/DazeProxy/wiki/%E5%BC%80%E5%90%AF%E7%94%A8%E6%88%B7%E9%AA%8C%E8%AF%81%E5%B9%B6%E7%94%A8DazeAdmin%E7%AE%A1%E7%90%86%E7%94%A8%E6%88%B7)  
 [各加密方式的详细解释与区别](https://github.com/crabkun/DazeProxy/wiki/%E5%90%84%E5%8A%A0%E5%AF%86%E6%96%B9%E5%BC%8F%E7%9A%84%E8%AF%A6%E7%BB%86%E8%A7%A3%E9%87%8A%E4%B8%8E%E5%8C%BA%E5%88%AB)  
 [各伪装方式的详细解释与区别](https://github.com/crabkun/DazeProxy/wiki/%E5%90%84%E4%BC%AA%E8%A3%85%E6%96%B9%E5%BC%8F%E7%9A%84%E8%AF%A6%E7%BB%86%E8%A7%A3%E9%87%8A%E4%B8%8E%E5%8C%BA%E5%88%AB)    
-连接外部数据库的详细说明  
-加密与伪装的开发文档  
-各种常见的问题与答案
+[连接外部数据库的详细说明 ](https://github.com/crabkun/DazeProxy/wiki/%E8%BF%9E%E6%8E%A5%E5%A4%96%E9%83%A8%E6%95%B0%E6%8D%AE%E5%BA%93%E7%9A%84%E8%AF%A6%E7%BB%86%E8%AF%B4%E6%98%8E) 
+[加密与伪装的开发文档 ](https://github.com/crabkun/DazeProxy/wiki/%E5%8A%A0%E5%AF%86%E4%B8%8E%E4%BC%AA%E8%A3%85%E7%9A%84%E5%BC%80%E5%8F%91%E6%96%87%E6%A1%A3) 
+[各种常见的问题与答案](https://github.com/crabkun/DazeProxy/wiki/%E5%90%84%E7%A7%8D%E5%B8%B8%E8%A7%81%E7%9A%84%E9%97%AE%E9%A2%98%E4%B8%8E%E7%AD%94%E6%A1%88)
 
 ## 感谢（Thanks）
 本项目借助了以下开源项目的力量才能完成，非常感谢以下项目以及其作者们！  
