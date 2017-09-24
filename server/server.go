@@ -41,8 +41,8 @@ func StartServer(s common.S_proxy,wg sync.WaitGroup){
 	if !ExistFlag{
 		panic("伪装方式"+s.Obscure+"不存在")
 	}
-	s.Ob=Ob()
-	ObInitErr:=s.Ob.Init(s.ObscureParam,&s.ObReserved)
+	s.Ob=Ob
+	ObInitErr:=s.Ob.Init(s.ObscureParam)
 	if ObInitErr!=nil{
 		panic("伪装方式"+s.Obscure+"加载错误！原因："+ObInitErr.Error())
 	}

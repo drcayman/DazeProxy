@@ -284,7 +284,7 @@ func NewClientComing(client *S_Client){
 	//设置验证超时时间
 	client.UserConn.SetDeadline(time.Now().Add(time.Second*10))
 	//开始伪装
-	obErr:=client.Proxy.Ob.Action(client.UserConn,&client.Proxy.ObReserved)
+	obErr:=client.Proxy.Ob.Action(client.UserConn)
 	if obErr!=nil{
 		panic("伪装时出现错误："+obErr.Error())
 	}

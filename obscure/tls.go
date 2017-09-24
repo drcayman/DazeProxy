@@ -15,10 +15,10 @@ import (
 	"github.com/crabkun/DazeProxy/util"
 )
 type TlsHandshake struct {
-	RegArg string
+	cert tls.Certificate
 }
 
-func (this *TlsHandshake) Init(param string,server *interface{})(error){
+func (this *TlsHandshake) Init(param string)(error){
 	privateKey, err := rsa.GenerateKey(rand.Reader,2048)
 	if err!=nil{
 		return err
@@ -54,19 +54,21 @@ func (this *TlsHandshake) Init(param string,server *interface{})(error){
 	if err != nil {
 		return err
 	}
-	cert,err:=tls.X509KeyPair(
+	this.cert,err=tls.X509KeyPair(
 		certPemBuf.Bytes(),
 		KeyPemBuf.Bytes(),
 	)
 	if err!=nil{
 		return err
 	}
-	*server=cert
 	return nil
 }
 
-func (this *TlsHandshake) Action(conn net.Conn , server *interface{}) (error){
-	cert:=(*server).(tls.Certificate)
-	c:=tls.Server(conn,&tls.Config{Certificates:[]tls.Certificate{cert}})
+func (this *TlsHandshake) Action(conn net.Conn) (error){
+	c:=tls.Server(conn,&tls.Config{Certificates:[]tls.Certificate{this.cert}})
 	return c.Handshake()
 }
+func init(){
+	RegisterObscure("tls_handshake",new(TlsHandshake))
+}
+

@@ -27,7 +27,7 @@ type S_proxy struct{
 	Group string
 
 	//加密与伪装的接口
-	Ob obscure.Action `json:"-"`
+	Ob obscure.ObscureAction `json:"-"`
 	E encryption.Action `json:"-"`
 	EReserved interface{} `json:"-"`
 	ObReserved interface{} `json:"-"`

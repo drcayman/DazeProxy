@@ -12,13 +12,12 @@ import (
 	"github.com/crabkun/DazeProxy/util"
 )
 type Http struct {
-	RegArg string
 }
-func (this *Http) Init(param string,server *interface{})(error) {
+func (this *Http) Init(param string)(error) {
 	return nil
 }
 
-func (this *Http) Action(conn net.Conn , server *interface{}) (error){
+func (this *Http) Action(conn net.Conn) (error){
 	var err error
 	_,err=http.ReadRequest(bufio.NewReader(conn))
 	if err!=nil{
@@ -36,4 +35,7 @@ func (this *Http) Action(conn net.Conn , server *interface{}) (error){
 		return err
 	}
 	return nil
+}
+func init(){
+	RegisterObscure("http",new(Http))
 }

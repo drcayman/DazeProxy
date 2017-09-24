@@ -1,41 +1,48 @@
 package obscure
 
 import (
-	"strings"
 	"net"
+	"reflect"
+	"errors"
 )
-type Action interface {
+type ObscureAction interface {
 	//Init，代理实例初始化时执行的操作
 	//param：配置文件里面填写的ObscureParam
-	//server：此代理实例中为伪装模块预留的空间
-	Init(param string,	server *interface{})(error)
+	Init(param string)(error)
 
 	//Action，用户连接后进行的伪装操作
 	//conn：用户的连接套接字
-	//server：此代理实例中为伪装模块预留的空间
-	Action(conn net.Conn,	server *interface{})(error)
+	Action(conn net.Conn)(error)
 }
-type regfunc func()(Action)
-var obscureMap map[string]regfunc
+var obscureMap map[string]reflect.Type
 
-func GetObscure(name string) (regfunc,bool){
-	name=strings.ToLower(name)
-	d,flag:=obscureMap[name]
-	return d,flag
-}
-
-func init(){
-	obscureMap=make(map[string]regfunc)
-	//自己开发的伪装模块必需在此注册
-
-	obscureMap["none"]=func()(Action){
-		return Action(&none{})
+func GetObscure(name string)(ObscureAction,bool){
+	if obscureMap==nil{
+		goto FAILED
 	}
-	obscureMap["tls_handshake"]=func()(Action){
-		return Action(&TlsHandshake{})
+	if v,ok:=obscureMap[name];ok{
+		return reflect.New(v).Interface().(ObscureAction),true
 	}
-	obscureMap["http"]=func()(Action){
-		return Action(&Http{})
-	}
+FAILED:
+	return nil,false
 }
 
+func GetObscureList()[]string{
+	list:=make([]string,0)
+	for k:=range obscureMap{
+		list=append(list, k)
+	}
+	return list
+}
+func RegisterObscure(name string,action ObscureAction)(error){
+	if obscureMap==nil{
+		obscureMap=make(map[string]reflect.Type)
+	}
+	if _,ok:=obscureMap[name];ok{
+		return errors.New("exist")
+	}
+	Ptype:=reflect.ValueOf(action)
+	STtype:=reflect.Indirect(Ptype).Type()
+	obscureMap[name]=STtype
+	return nil
+}
