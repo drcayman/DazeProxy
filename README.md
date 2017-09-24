@@ -1,4 +1,4 @@
-# DazeProxy
+# DazeProxy（服务端）
 
 一个由Golang编写的免费、多功能、高性能代理服务端。
 
@@ -33,11 +33,13 @@ DazeProxy属于Daze代理套件。Daze代理套件包括：
 
 ## 加密和伪装
 
-目前Daze代理套件自带的伪装方式有  
+目前Daze代理套件自带的伪装方式有
+- none：不伪装
 - http：可伪装成HTTP GET或POST连接  
 - tls_handshake：可伪装成TLS1.2连接  
 
-目前Daze代理套件自带的加密方式有  
+目前Daze代理套件自带的加密方式有
+- none：不加密
 - keypair-rsa：服务端生成RSA密钥并发送公钥与客户端协商aes密钥，然后进行aes128位cfb模式加密  
 - psk-aes-128-cfb：客户端与服务端利用约定好的预共享密钥进行aes128位cfb模式加密  
 - psk-aes-256-cfb：客户端与服务端利用约定好的预共享密钥进行aes256位cfb模式加密  
