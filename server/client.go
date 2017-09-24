@@ -36,14 +36,14 @@ type S_Client struct {
 
 }
 func (client *S_Client)Decode(data []byte) []byte{
-	buf,err:=client.Proxy.E.Decrypt(&client.EReserved,&client.Proxy.EReserved,data)
+	buf,err:=client.Proxy.E.Decrypt(&client.EReserved,data)
 	if err!=nil{
 		panic(err.Error())
 	}
 	return buf
 }
 func (client *S_Client)Encode(data []byte) []byte{
-	buf,err:=client.Proxy.E.Encrypt(&client.EReserved,&client.Proxy.EReserved,data)
+	buf,err:=client.Proxy.E.Encrypt(&client.EReserved,data)
 	if err!=nil{
 		panic(err.Error())
 	}
@@ -289,7 +289,7 @@ func NewClientComing(client *S_Client){
 		panic("伪装时出现错误："+obErr.Error())
 	}
 	//为用户初始化加密方式
-	eErr:=client.Proxy.E.InitUser(client.UserConn,&client.EReserved,&client.Proxy.EReserved)
+	eErr:=client.Proxy.E.InitUser(client.UserConn,&client.EReserved)
 	if eErr!=nil{
 		panic("为用户初始化加密方式时出现错误："+eErr.Error())
 	}

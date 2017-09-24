@@ -30,8 +30,8 @@ func StartServer(s common.S_proxy,wg sync.WaitGroup){
 	if !ExistFlag{
 		panic("加密方式"+s.Encryption+"不存在")
 	}
-	s.E=E()
-	EInitErr:=s.E.Init(s.EncryptionParam,&s.EReserved)
+	s.E=E
+	EInitErr:=s.E.Init(s.EncryptionParam)
 	if EInitErr!=nil{
 		panic("加密方式"+s.Encryption+"加载错误！原因："+EInitErr.Error())
 	}

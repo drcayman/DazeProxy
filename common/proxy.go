@@ -28,8 +28,6 @@ type S_proxy struct{
 
 	//加密与伪装的接口
 	Ob obscure.ObscureAction `json:"-"`
-	E encryption.Action `json:"-"`
-	EReserved interface{} `json:"-"`
-	ObReserved interface{} `json:"-"`
+	E encryption.EncryptionAction `json:"-"`
 	Config S_config `json:"-"`
 }

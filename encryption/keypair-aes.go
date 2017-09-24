@@ -16,26 +16,22 @@ import (
 )
 
 type KeypairAes struct {
-	reserved string
+	privateKey *rsa.PrivateKey
 }
 type KeypairAesTmp struct {
 	Key []byte
 	Block cipher.Block
 }
-func (this *KeypairAes) Init(param string,server *interface{})(error){
-	privateKey, err := rsa.GenerateKey(rand.Reader,8*(128+mrand.Intn(64)))
+func (this *KeypairAes) Init(param string)(error){
+	var err error
+	this.privateKey, err = rsa.GenerateKey(rand.Reader,8*(128+mrand.Intn(64)))
 	if err!=nil{
 		return err
 	}
-	*server=privateKey
 	return nil
 }
-func (this *KeypairAes)InitUser(conn net.Conn,client *interface{},server *interface{})(error){
+func (this *KeypairAes)InitUser(conn net.Conn,client *interface{})(error){
 	var err error
-	key,flag:=(*server).(*rsa.PrivateKey)
-	if !flag{
-		return errors.New("unknown error")
-	}
 	utc:=time.Now().UTC()
 	s,err:=time.ParseDuration(utc.Format("-15h04m05s"))
 	if err!=nil{
@@ -55,7 +51,7 @@ func (this *KeypairAes)InitUser(conn net.Conn,client *interface{},server *interf
 		return err
 	}
 	enc:=cipher.NewCFBEncrypter(Cipher,aesKey[:Cipher.BlockSize()])
-	pubkey,err:=x509.MarshalPKIXPublicKey(&key.PublicKey)
+	pubkey,err:=x509.MarshalPKIXPublicKey(&this.privateKey.PublicKey)
 	if err!=nil{
 		return errors.New("unknown error")
 	}
@@ -65,11 +61,11 @@ func (this *KeypairAes)InitUser(conn net.Conn,client *interface{},server *interf
 	keyEncodedBuf[0]=byte(len(keyEncoded))
 	copy(keyEncodedBuf[1:],keyEncoded)
 	conn.Write(keyEncodedBuf)
-	buf,err:=this.SafeRead(conn,key.N.BitLen()/8)
+	buf,err:=this.SafeRead(conn,this.privateKey.N.BitLen()/8)
 	if err!=nil{
 		return errors.New("无法接收客户端的密钥")
 	}
-	DecryptBuf,DecryptErr:=rsa.DecryptPKCS1v15(rand.Reader,key,buf)
+	DecryptBuf,DecryptErr:=rsa.DecryptPKCS1v15(rand.Reader,this.privateKey,buf)
 	if DecryptErr!=nil{
 		return errors.New("无法解密客户端发送过来的数据")
 	}
@@ -83,7 +79,7 @@ func (this *KeypairAes)InitUser(conn net.Conn,client *interface{},server *interf
 	*client=t
 	return nil
 }
-func (this *KeypairAes)Encrypt(client *interface{},server *interface{},data []byte)([]byte,error){
+func (this *KeypairAes)Encrypt(client *interface{},data []byte)([]byte,error){
 	t,flag:=(*client).(KeypairAesTmp)
 	if !flag{
 		return nil,errors.New("unknown error")
@@ -93,7 +89,7 @@ func (this *KeypairAes)Encrypt(client *interface{},server *interface{},data []by
 	Crypter.XORKeyStream(dst,data)
 	return dst,nil
 }
-func (this *KeypairAes)Decrypt(client *interface{},server *interface{},data []byte)([]byte,error){
+func (this *KeypairAes)Decrypt(client *interface{},data []byte)([]byte,error){
 	t,flag:=(*client).(KeypairAesTmp)
 	if !flag{
 		return nil,errors.New("unknown error")
@@ -107,4 +103,7 @@ func (this *KeypairAes)SafeRead(conn net.Conn,length int)([]byte,error){
 	buf:=make([]byte,length)
 	_,err:=io.ReadFull(conn,buf)
 	return buf,err
+}
+func init(){
+	RegisterEncryption("keypair-aes",new(KeypairAes))
 }
