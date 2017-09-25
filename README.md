@@ -1,6 +1,6 @@
 # DazeProxy（服务端）
 
-一个由Golang编写的免费、多功能、高性能代理服务端。
+一个用Golang编写的免费、多功能、高性能代理服务端。
 
 DazeProxy属于Daze代理套件。Daze代理套件包括：
 
