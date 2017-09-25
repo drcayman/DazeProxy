@@ -8,7 +8,7 @@ import (
 	"log"
 )
 var IsDebug bool
-func LoadConfig(config *common.S_config,logflag bool){
+func LoadConfig(config *common.S_config){
 	buf,ReadErr:=ioutil.ReadFile("config.json")
 	if ReadErr!=nil{
 		log.Println("配置文件(config.json)读取错误："+ReadErr.Error())
@@ -20,9 +20,6 @@ func LoadConfig(config *common.S_config,logflag bool){
 		os.Exit(-1)
 	}
 	log.Println("配置文件读取成功：")
-	log.Println("    调试模式：",!logflag && config.Debug)
+	log.Println("    调试模式：",config.Debug)
 	log.Printf("一共%d个代理服务单元\n",len(config.Proxy))
-	if !logflag{
-		IsDebug=config.Debug
-	}
 }
