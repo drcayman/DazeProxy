@@ -117,7 +117,7 @@ func (client *S_Client)Auth(username string,password string) error {
 	if !Expired.IsZero() && Expired.Sub(time.Now().UTC()) < 0{
 		return errors.New("用户已过期")
 	}
-	if group!="" && strings.Index(group,"|"+client.Proxy.Group+"|")==-1{
+	if group!="" && !strings.Contains(group,"|"+client.Proxy.Group+"|"){
 		return errors.New("用户当前的权限无法登录此服务器组")
 	}
 	return nil

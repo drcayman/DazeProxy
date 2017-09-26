@@ -58,10 +58,7 @@ func (this *TlsHandshake) Init(param string)(error){
 		certPemBuf.Bytes(),
 		KeyPemBuf.Bytes(),
 	)
-	if err!=nil{
-		return err
-	}
-	return nil
+	return err
 }
 
 func (this *TlsHandshake) Action(conn net.Conn) (error){

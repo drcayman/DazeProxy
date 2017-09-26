@@ -31,10 +31,7 @@ func (this *Http) Action(conn net.Conn) (error){
 	buffer.Write([]byte(util.GetRandomString(ContentLength)))
 	conn.Write(buffer.Bytes())
 	_,err=http.ReadRequest(bufio.NewReader(conn))
-	if err!=nil{
-		return err
-	}
-	return nil
+	return err
 }
 func init(){
 	RegisterObscure("http",new(Http))

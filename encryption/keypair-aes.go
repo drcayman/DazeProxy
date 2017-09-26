@@ -25,10 +25,7 @@ type KeypairAesTmp struct {
 func (this *KeypairAes) Init(param string)(error){
 	var err error
 	this.privateKey, err = rsa.GenerateKey(rand.Reader,8*(128+mrand.Intn(64)))
-	if err!=nil{
-		return err
-	}
-	return nil
+	return err
 }
 func (this *KeypairAes)InitUser(conn net.Conn,client *interface{})(error){
 	var err error
