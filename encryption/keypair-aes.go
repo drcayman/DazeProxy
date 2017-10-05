@@ -4,13 +4,9 @@ import (
 	"net"
 	"crypto/rsa"
 	"crypto/rand"
-	"crypto/x509"
 	"errors"
-	"time"
-	"strconv"
 	"crypto/aes"
 	"crypto/cipher"
-	"github.com/crabkun/DazeProxy/util"
 	mrand "math/rand"
 	"io"
 )
@@ -24,40 +20,16 @@ type KeypairAesTmp struct {
 }
 func (this *KeypairAes) Init(param string)(error){
 	var err error
-	this.privateKey, err = rsa.GenerateKey(rand.Reader,8*(128+mrand.Intn(64)))
+	this.privateKey, err = rsa.GenerateKey(rand.Reader,8*(128+mrand.Intn(127)))
 	return err
 }
 func (this *KeypairAes)InitUser(conn net.Conn,client *interface{})(error){
 	var err error
-	utc:=time.Now().UTC()
-	s,err:=time.ParseDuration(utc.Format("-15h04m05s"))
-	if err!=nil{
-		return err
-	}
-	utc=utc.Add(s)
-	UTCunix:=utc.Unix()
-	UTCunixStr:=strconv.FormatInt(UTCunix,10)
-	UTCunixStrPadded:=util.StrPadding(UTCunixStr,16,"0")
-
-	aesKey,err:=util.Gen16Md5Key(UTCunixStrPadded)
-	if err!=nil{
-		return err
-	}
-	Cipher,err:=aes.NewCipher(aesKey)
-	if err!=nil{
-		return err
-	}
-	enc:=cipher.NewCFBEncrypter(Cipher,aesKey[:Cipher.BlockSize()])
-	pubkey,err:=x509.MarshalPKIXPublicKey(&this.privateKey.PublicKey)
-	if err!=nil{
-		return errors.New("unknown error")
-	}
-	keyEncoded:=make([]byte,len(pubkey))
-	enc.XORKeyStream(keyEncoded,pubkey)
-	keyEncodedBuf:=make([]byte,len(keyEncoded)+1)
-	keyEncodedBuf[0]=byte(len(keyEncoded))
-	copy(keyEncodedBuf[1:],keyEncoded)
-	conn.Write(keyEncodedBuf)
+	keylen:=this.privateKey.PublicKey.N.BitLen()/8
+	keyBuf:=make([]byte,keylen+1)
+	keyBuf[0]=byte(keylen)
+	copy(keyBuf[1:],this.privateKey.PublicKey.N.Bytes())
+	conn.Write(keyBuf)
 	buf,err:=this.SafeRead(conn,this.privateKey.N.BitLen()/8)
 	if err!=nil{
 		return errors.New("无法接收客户端的密钥")
